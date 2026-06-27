@@ -1,19 +1,59 @@
 <!DOCTYPE html>
-<html>
+
+<html lang="en">
 <head>
-    <title>Event Management System</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+<title>Event Management System</title>
 
-    <style>
-        body{
-            background:#f5f7fa;
-        }
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
 
-        .hero{
-            margin-top:100px;
-        }
-    </style>
+<style>
+
+body{
+    background:#f5f7fa;
+    font-family:'Segoe UI',sans-serif;
+}
+
+.navbar{
+    box-shadow:0 2px 15px rgba(0,0,0,.1);
+}
+
+.hero{
+    background:linear-gradient(135deg,#0d6efd,#6610f2);
+    color:white;
+    padding:100px 0;
+}
+
+.hero h1{
+    font-size:3rem;
+    font-weight:700;
+}
+
+.hero p{
+    font-size:1.2rem;
+}
+
+.feature-card{
+    border:none;
+    border-radius:15px;
+    transition:.3s;
+    box-shadow:0 5px 20px rgba(0,0,0,.08);
+}
+
+.feature-card:hover{
+    transform:translateY(-8px);
+}
+
+.footer{
+    background:#212529;
+    color:white;
+    padding:20px;
+    margin-top:60px;
+}
+
+</style>
 
 </head>
 
@@ -21,47 +61,161 @@
 
 <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
 
-    <div class="container">
+<div class="container">
 
-        <a class="navbar-brand" href="/">
-            Event Management System
-        </a>
+<a class="navbar-brand fw-bold" href="/">
+🎯 Event Management
+</a>
 
-    </div>
+<button class="navbar-toggler" type="button"
+data-bs-toggle="collapse"
+data-bs-target="#menu"> <span class="navbar-toggler-icon"></span> </button>
+
+<div class="collapse navbar-collapse" id="menu">
+
+<ul class="navbar-nav ms-auto">
+
+<li class="nav-item">
+<a class="nav-link" href="/">Home</a>
+</li>
+
+<li class="nav-item">
+<a class="nav-link" href="/register">Register</a>
+</li>
+
+<li class="nav-item">
+<a class="nav-link" href="/login">Admin</a>
+</li>
+
+</ul>
+
+</div>
+
+</div>
 
 </nav>
 
-<div class="container hero">
+<section class="hero">
 
-    <div class="text-center">
+<div class="container text-center">
 
-        <h1 class="display-4">
-            Welcome to Event Management System
-        </h1>
+<h1>Event Management System</h1>
 
-        <p class="lead">
-            Registration • Attendance • Certificates • Reports
-        </p>
+<p class="mt-3">
+Registration • QR Code • Attendance • Certificates • Reports
+</p>
 
-        <br>
+<div class="mt-4">
 
-        <a href="/register"
-           class="btn btn-success btn-lg">
+<a href="/register"
+class="btn btn-warning btn-lg me-2">
+Register Now </a>
 
-            Register Participant
-
-        </a>
-
-        <a href="/login"
-           class="btn btn-primary btn-lg">
-
-            Admin Login
-
-        </a>
-
-    </div>
+<a href="/login"
+class="btn btn-light btn-lg">
+Admin Login </a>
 
 </div>
+
+</div>
+
+</section>
+
+<div class="container py-5">
+
+<div class="row g-4">
+
+<div class="col-md-3">
+
+<div class="card feature-card">
+
+<div class="card-body text-center">
+
+<h2>📝</h2>
+
+<h5>Registration</h5>
+
+<p>Easy participant registration system.</p>
+
+</div>
+
+</div>
+
+</div>
+
+<div class="col-md-3">
+
+<div class="card feature-card">
+
+<div class="card-body text-center">
+
+<h2>📱</h2>
+
+<h5>QR Code</h5>
+
+<p>Automatic QR code generation.</p>
+
+</div>
+
+</div>
+
+</div>
+
+<div class="col-md-3">
+
+<div class="card feature-card">
+
+<div class="card-body text-center">
+
+<h2>✅</h2>
+
+<h5>Attendance</h5>
+
+<p>Manage participant attendance.</p>
+
+</div>
+
+</div>
+
+</div>
+
+<div class="col-md-3">
+
+<div class="card feature-card">
+
+<div class="card-body text-center">
+
+<h2>🏆</h2>
+
+<h5>Certificates</h5>
+
+<p>Generate certificates instantly.</p>
+
+</div>
+
+</div>
+
+</div>
+
+</div>
+
+</div>
+
+<footer class="footer text-center">
+
+<div class="container">
+
+<h5>Event Management System</h5>
+
+<p class="mb-0">
+Powered by Flask • Bootstrap • Render
+</p>
+
+</div>
+
+</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 
 </body>
 </html>

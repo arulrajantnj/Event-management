@@ -9,7 +9,11 @@ from reportlab.pdfgen import canvas
 app = Flask(__name__)
 app.secret_key = "event_management_secret_key"
 
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///event.db'
+
+app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv(
+    "DATABASE_URL",
+    "sqlite:///event.db"
+)
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db = SQLAlchemy(app)
