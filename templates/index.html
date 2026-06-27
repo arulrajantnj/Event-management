@@ -1,7 +1,9 @@
 <!DOCTYPE html>
 
 <html lang="en">
+
 <head>
+
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 
@@ -9,48 +11,106 @@
 
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
 
+<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" rel="stylesheet">
+
 <style>
 
+:root{
+    --primary:#0d47a1;
+    --secondary:#ffc107;
+    --success:#28a745;
+    --danger:#dc3545;
+}
+
 body{
+    font-family:Segoe UI,sans-serif;
     background:#f5f7fa;
-    font-family:'Segoe UI',sans-serif;
 }
 
 .navbar{
-    box-shadow:0 2px 15px rgba(0,0,0,.1);
+    background:linear-gradient(90deg,var(--primary),#1565c0);
+}
+
+.logo{
+    height:70px;
+}
+
+.top-bar{
+    background:#001f54;
+    color:white;
+    padding:8px;
 }
 
 .hero{
-    background:linear-gradient(135deg,#0d6efd,#6610f2);
+    position:relative;
+}
+
+.hero img{
+    width:100%;
+    height:550px;
+    object-fit:cover;
+}
+
+.hero-content{
+    position:absolute;
+    top:50%;
+    left:50%;
+    transform:translate(-50%,-50%);
     color:white;
-    padding:100px 0;
+    text-align:center;
+    width:90%;
 }
 
-.hero h1{
-    font-size:3rem;
-    font-weight:700;
+.hero-content h1{
+    font-size:55px;
+    font-weight:bold;
 }
 
-.hero p{
-    font-size:1.2rem;
+.hero-content p{
+    font-size:24px;
 }
 
-.feature-card{
+.notice{
+    background:#ffeb3b;
+    color:red;
+    font-weight:bold;
+    padding:10px;
+}
+
+.blink{
+    animation:blink 1s infinite;
+}
+
+@keyframes blink{
+    50%{
+        opacity:0;
+    }
+}
+
+.counter-card{
     border:none;
     border-radius:15px;
+    text-align:center;
+    color:white;
+    padding:30px;
     transition:.3s;
-    box-shadow:0 5px 20px rgba(0,0,0,.08);
 }
 
-.feature-card:hover{
-    transform:translateY(-8px);
+.counter-card:hover{
+    transform:translateY(-5px);
+}
+
+.gallery img{
+    width:100%;
+    height:250px;
+    object-fit:cover;
+    border-radius:15px;
 }
 
 .footer{
-    background:#212529;
+    background:#001f54;
     color:white;
-    padding:20px;
-    margin-top:60px;
+    padding:30px;
 }
 
 </style>
@@ -59,35 +119,51 @@ body{
 
 <body>
 
-<nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+<div class="top-bar">
+
+<div class="container d-flex justify-content-between">
+
+<div>
+
+📢 Registration Open Now
+
+</div>
+
+<div>
+
+🕒 <span id="clock"></span>
+
+</div>
+
+</div>
+
+</div>
+
+<nav class="navbar navbar-expand-lg navbar-dark">
 
 <div class="container">
 
-<a class="navbar-brand fw-bold" href="/">
-🎯 Event Management
+<a class="navbar-brand" href="#">
+
+<img src="{{ url_for('static',filename='images/logo.png') }}" class="logo">
+
+Event Management System
+
 </a>
 
-<button class="navbar-toggler" type="button"
-data-bs-toggle="collapse"
-data-bs-target="#menu"> <span class="navbar-toggler-icon"></span> </button>
+<div>
 
-<div class="collapse navbar-collapse" id="menu">
+<a href="/register" class="btn btn-success">
 
-<ul class="navbar-nav ms-auto">
+Register
 
-<li class="nav-item">
-<a class="nav-link" href="/">Home</a>
-</li>
+</a>
 
-<li class="nav-item">
-<a class="nav-link" href="/register">Register</a>
-</li>
+<a href="/login" class="btn btn-warning">
 
-<li class="nav-item">
-<a class="nav-link" href="/login">Admin</a>
-</li>
+Admin Login
 
-</ul>
+</a>
 
 </div>
 
@@ -95,49 +171,61 @@ data-bs-target="#menu"> <span class="navbar-toggler-icon"></span> </button>
 
 </nav>
 
-<section class="hero">
+<div class="notice">
 
-<div class="container text-center">
+<marquee>
 
-<h1>Event Management System</h1>
+📢 ஆண்டு விழா பதிவு தொடங்கியுள்ளது |
+📢 Last Date : 31 July 2026 |
+📢 அனைவரும் பதிவு செய்யவும்
 
-<p class="mt-3">
-Registration • QR Code • Attendance • Certificates • Reports
-</p>
-
-<div class="mt-4">
-
-<a href="/register"
-class="btn btn-warning btn-lg me-2">
-Register Now </a>
-
-<a href="/login"
-class="btn btn-light btn-lg">
-Admin Login </a>
+</marquee>
 
 </div>
+
+<section class="hero">
+
+<img src="{{ url_for('static',filename='images/banner.jpg') }}">
+
+<div class="hero-content">
+
+<h1>ANNUAL EVENT 2026</h1>
+
+<p>
+
+Registration • Attendance • Certificates • Reports
+
+</p>
+
+<h3 class="blink text-warning">
+
+🔥 LIMITED SEATS AVAILABLE 🔥
+
+</h3>
+
+<br>
+
+<a href="/register" class="btn btn-success btn-lg">
+
+Register Now
+
+</a>
 
 </div>
 
 </section>
 
-<div class="container py-5">
+<div class="container mt-4">
 
-<div class="row g-4">
+<div class="row">
 
 <div class="col-md-3">
 
-<div class="card feature-card">
+<div class="counter-card bg-primary">
 
-<div class="card-body text-center">
+<h1 id="c1">0</h1>
 
-<h2>📝</h2>
-
-<h5>Registration</h5>
-
-<p>Easy participant registration system.</p>
-
-</div>
+Participants
 
 </div>
 
@@ -145,17 +233,11 @@ Admin Login </a>
 
 <div class="col-md-3">
 
-<div class="card feature-card">
+<div class="counter-card bg-success">
 
-<div class="card-body text-center">
+<h1 id="c2">0</h1>
 
-<h2>📱</h2>
-
-<h5>QR Code</h5>
-
-<p>Automatic QR code generation.</p>
-
-</div>
+Schools
 
 </div>
 
@@ -163,17 +245,11 @@ Admin Login </a>
 
 <div class="col-md-3">
 
-<div class="card feature-card">
+<div class="counter-card bg-danger">
 
-<div class="card-body text-center">
+<h1 id="c3">0</h1>
 
-<h2>✅</h2>
-
-<h5>Attendance</h5>
-
-<p>Manage participant attendance.</p>
-
-</div>
+Events
 
 </div>
 
@@ -181,15 +257,79 @@ Admin Login </a>
 
 <div class="col-md-3">
 
-<div class="card feature-card">
+<div class="counter-card bg-warning text-dark">
+
+<h1 id="c4">0</h1>
+
+Certificates
+
+</div>
+
+</div>
+
+</div>
+
+</div>
+
+<div class="container mt-5">
+
+<div class="row">
+
+<div class="col-md-8">
+
+<div id="carouselExample" class="carousel slide" data-bs-ride="carousel">
+
+<div class="carousel-inner">
+
+<div class="carousel-item active">
+
+<img src="{{ url_for('static',filename='images/gallery1.jpg') }}" class="d-block w-100">
+
+</div>
+
+<div class="carousel-item">
+
+<img src="{{ url_for('static',filename='images/gallery2.jpg') }}" class="d-block w-100">
+
+</div>
+
+<div class="carousel-item">
+
+<img src="{{ url_for('static',filename='images/gallery3.jpg') }}" class="d-block w-100">
+
+</div>
+
+</div>
+
+<button class="carousel-control-prev" type="button" data-bs-target="#carouselExample" data-bs-slide="prev">
+
+<span class="carousel-control-prev-icon"></span>
+
+</button>
+
+<button class="carousel-control-next" type="button" data-bs-target="#carouselExample" data-bs-slide="next">
+
+<span class="carousel-control-next-icon"></span>
+
+</button>
+
+</div>
+
+</div>
+
+<div class="col-md-4">
+
+<div class="card shadow">
+
+<div class="card-header bg-primary text-white">
+
+Event Countdown
+
+</div>
 
 <div class="card-body text-center">
 
-<h2>🏆</h2>
-
-<h5>Certificates</h5>
-
-<p>Generate certificates instantly.</p>
+<h2 id="countdown"></h2>
 
 </div>
 
@@ -201,14 +341,58 @@ Admin Login </a>
 
 </div>
 
-<footer class="footer text-center">
+<div class="container mt-5">
 
-<div class="container">
+<h2 class="text-center">
 
-<h5>Event Management System</h5>
+Event Gallery
 
-<p class="mb-0">
-Powered by Flask • Bootstrap • Render
+</h2>
+
+<div class="row gallery">
+
+<div class="col-md-4">
+
+<img src="{{ url_for('static',filename='images/gallery1.jpg') }}">
+
+</div>
+
+<div class="col-md-4">
+
+<img src="{{ url_for('static',filename='images/gallery2.jpg') }}">
+
+</div>
+
+<div class="col-md-4">
+
+<img src="{{ url_for('static',filename='images/gallery3.jpg') }}">
+
+</div>
+
+</div>
+
+</div>
+
+<footer class="footer mt-5">
+
+<div class="container text-center">
+
+<h4>Event Management System</h4>
+
+<p>
+
+Tamil Nadu • Registration • Attendance • Certificates
+
+</p>
+
+<p>
+
+<i class="fab fa-facebook"></i>
+
+<i class="fab fa-youtube mx-3"></i>
+
+<i class="fab fa-whatsapp"></i>
+
 </p>
 
 </div>
@@ -216,6 +400,49 @@ Powered by Flask • Bootstrap • Render
 </footer>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+
+<script>
+
+function updateClock(){
+document.getElementById("clock").innerHTML =
+new Date().toLocaleTimeString();
+}
+setInterval(updateClock,1000);
+
+function animate(id,target){
+let count=0;
+let speed=target/100;
+let x=setInterval(()=>{
+count+=speed;
+if(count>=target){
+count=target;
+clearInterval(x);
+}
+document.getElementById(id).innerHTML=Math.floor(count)+"+";
+},20);
+}
+
+animate("c1",5000);
+animate("c2",150);
+animate("c3",75);
+animate("c4",100);
+
+let eventDate=new Date("August 22, 2026 09:00:00").getTime();
+
+setInterval(function(){
+
+let now=new Date().getTime();
+
+let distance=eventDate-now;
+
+let days=Math.floor(distance/(1000*60*60*24));
+
+document.getElementById("countdown").innerHTML=
+days+" Days";
+
+},1000);
+
+</script>
 
 </body>
 </html>
