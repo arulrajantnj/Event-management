@@ -7,9 +7,15 @@ import os
 from reportlab.pdfgen import canvas
 
 app = Flask(__name__)
-app.secret_key = "event_management_secret_key"
 
+# =========================
+# SECRET KEY
+# =========================
+app.secret_key = os.environ.get("SECRET_KEY", "event_management_secret_key")
 
+# =========================
+# DATABASE CONFIG
+# =========================
 app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv(
     "DATABASE_URL",
     "sqlite:///event.db"
@@ -21,7 +27,6 @@ db = SQLAlchemy(app)
 # =========================
 # DATABASE MODEL
 # =========================
-
 class Participant(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     reg_id = db.Column(db.String(20), unique=True)
@@ -42,15 +47,13 @@ class Participant(db.Model):
 # =========================
 # HOME
 # =========================
-
 @app.route('/')
 def home():
     return render_template('index.html')
 
 # =========================
-# REGISTRATION
+# REGISTER
 # =========================
-
 @app.route('/register', methods=['GET', 'POST'])
 def register():
 
@@ -82,8 +85,7 @@ Mobile: {participant.mobile}
 """
 
         qr = qrcode.make(qr_data)
-        qr_path = f"qrcodes/{reg_id}.png"
-        qr.save(qr_path)
+        qr.save(f"qrcodes/{reg_id}.png")
 
         return render_template('success.html', participant=participant)
 
@@ -92,7 +94,6 @@ Mobile: {participant.mobile}
 # =========================
 # LOGIN
 # =========================
-
 @app.route('/login', methods=['GET', 'POST'])
 def login():
 
@@ -112,7 +113,6 @@ def login():
 # =========================
 # LOGOUT
 # =========================
-
 @app.route('/logout')
 def logout():
     session.clear()
@@ -121,7 +121,6 @@ def logout():
 # =========================
 # ADMIN DASHBOARD
 # =========================
-
 @app.route('/admin')
 def admin():
 
@@ -129,6 +128,7 @@ def admin():
         return redirect('/login')
 
     search = request.args.get('search', '')
+
     page = request.args.get('page', 1, type=int)
 
     query = Participant.query
@@ -165,7 +165,6 @@ def admin():
 # =========================
 # ATTENDANCE
 # =========================
-
 @app.route('/attendance/<int:id>')
 def attendance(id):
 
@@ -182,16 +181,13 @@ def attendance(id):
 # =========================
 # QR CODE VIEW
 # =========================
-
 @app.route('/qrcode/<reg_id>')
 def qrcode_view(reg_id):
-    path = f"qrcodes/{reg_id}.png"
-    return send_file(path)
+    return send_file(f"qrcodes/{reg_id}.png")
 
 # =========================
 # CERTIFICATE
 # =========================
-
 @app.route('/certificate/<int:id>')
 def certificate(id):
 
@@ -220,7 +216,6 @@ def certificate(id):
 # =========================
 # EXPORT EXCEL
 # =========================
-
 @app.route('/export')
 def export():
 
@@ -229,35 +224,30 @@ def export():
 
     participants = Participant.query.all()
 
-    data = []
-    for p in participants:
-        data.append({
-            "Reg ID": p.reg_id,
-            "Name": p.name,
-            "Mobile": p.mobile,
-            "Email": p.email,
-            "District": p.district,
-            "Organization": p.organization,
-            "Designation": p.designation,
-            "Category": p.category,
-            "Attendance": p.attendance
-        })
+    data = [{
+        "Reg ID": p.reg_id,
+        "Name": p.name,
+        "Mobile": p.mobile,
+        "Email": p.email,
+        "District": p.district,
+        "Organization": p.organization,
+        "Designation": p.designation,
+        "Category": p.category,
+        "Attendance": p.attendance
+    } for p in participants]
 
     df = pd.DataFrame(data)
+
     file_name = "participants.xlsx"
     df.to_excel(file_name, index=False)
 
     return send_file(file_name, as_attachment=True)
 
 # =========================
-# START APP
+# START APP (LOCAL ONLY)
 # =========================
-
 if __name__ == "__main__":
     with app.app_context():
         db.create_all()
 
-    app.run(debug=True)
-    
-if __name__ == "__main__":
-    app.run()
+    app.run(host="0.0.0.0", port=5000)
