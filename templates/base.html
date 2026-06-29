@@ -35,11 +35,15 @@ rel="stylesheet">
 href="{{ url_for('static',filename='css/style.css') }}">
 
 </head>
-<a href="https://wa.me/919999999999"
-class="whatsapp">
 
-<i class="bi bi-whatsapp"></i>
+<body>
 
+<a href="https://wa.me/919999999999" class="whatsapp">
+    <i class="bi bi-whatsapp"></i>
+</a>
+
+<a href="#" class="top-btn">
+    <i class="bi bi-arrow-up"></i>
 </a>
 
 <a href="#"
@@ -73,71 +77,85 @@ class="top-btn">
 
 <nav class="navbar navbar-expand-lg modern-navbar">
 
-<div class="container-fluid">
+    <div class="container">
 
-<a class="navbar-brand d-flex align-items-center" href="/">
+        <div class="row w-100 align-items-center">
 
-    <img src="{{ url_for('static', filename='images/logo.png') }}"
-         class="logo-img"
-         alt="Logo">
+            <!-- Logo & Title -->
+            <div class="col-lg-7 col-md-8 col-10">
 
-    <div class="ms-3">
+                <a class="navbar-brand d-flex align-items-center m-0" href="/">
 
-        <h2 class="brand-title">
-            SRI VANDURAI EVENTS - THANJAVUR
+                    <img src="{{ url_for('static', filename='images/logo.png') }}"
+                         class="logo-img"
+                         alt="Logo">
+
+                    <div class="ms-3">
+
+                       <h2 class="brand-title mb-0">
+            SRI VANDURAI EVENTS
         </h2>
+
+        <h5 class="brand-location mb-1">
+            THANJAVUR
+        </h5>
 
         <small class="brand-subtitle">
             Organize • Manage • Celebrate • Success
         </small>
 
-    </div>
+                    </div>
 
-</a>
+                </a>
 
-<button class="navbar-toggler"
-        type="button"
-        data-bs-toggle="collapse"
-        data-bs-target="#menu">
+            </div>
 
-    <span class="navbar-toggler-icon"></span>
+            <!-- Toggle Button -->
+            <div class="col-lg-5 col-md-4 col-2 text-end">
 
-</button>
+                <button class="navbar-toggler"
+                        type="button"
+                        data-bs-toggle="collapse"
+                        data-bs-target="#menu">
 
-<div class="collapse navbar-collapse"
+                    <span class="navbar-toggler-icon"></span>
+
+                </button>
+
+                <div class="collapse navbar-collapse justify-content-end mt-3 mt-lg-0"
      id="menu">
 
     <ul class="navbar-nav ms-auto">
 
         <li class="nav-item">
-            <a class="nav-link" href="/">
-                <i class="bi bi-house-fill"></i>
-                Home
+            <a class="nav-link home-link" href="/">
+                <i class="bi bi-house-fill"></i> Home
             </a>
         </li>
 
         <li class="nav-item">
-            <a class="nav-link" href="/register">
-                <i class="bi bi-person-plus-fill"></i>
-                Registration
+            <a class="nav-link register-link" href="/register">
+                <i class="bi bi-person-plus-fill"></i> Registration
             </a>
         </li>
 
         <li class="nav-item">
-            <a class="nav-link" href="/login">
-                <i class="bi bi-shield-lock-fill"></i>
-                Admin
+            <a class="nav-link admin-link" href="/login">
+                <i class="bi bi-shield-lock-fill"></i> Admin
             </a>
         </li>
 
     </ul>
 
-</div>
+                </div>
 
-</div>
+            </div>
+
+        </div>
+
+    </div>
 
 </nav>
-
 
 <!-- CONTENT -->
 

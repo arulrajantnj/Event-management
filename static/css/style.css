@@ -233,8 +233,8 @@ body{
 }
 
 .logo-img{
-    width:85px;
-    height:85px;
+    width:100px;
+    height:100px;
     border-radius:50%;
     object-fit:cover;
 }
@@ -255,7 +255,382 @@ body{
     -webkit-background-clip:text;
     -webkit-text-fill-color:transparent;
 }
+/* =====================================================
+   MOBILE & TABLET RESPONSIVE
+===================================================== */
 
+html{
+    scroll-behavior:smooth;
+}
+
+body{
+    overflow-x:hidden;
+}
+
+img{
+    max-width:100%;
+    height:auto;
+}
+@media (max-width:768px){
+
+.poster-carousel{
+    max-width:280px;
+}
+
+}
+
+@media (max-width:576px){
+
+.poster-carousel{
+    max-width:240px;
+}
+
+}
+
+/* ==================================
+   Portrait Poster Carousel
+================================== */
+
+.poster-carousel{
+    max-width:420px;
+    margin:40px auto;
+    background:#fff;
+    border-radius:20px;
+    overflow:hidden;
+    box-shadow:0 10px 30px rgba(0,0,0,.20);
+}
+
+.poster-slider-img{
+    width:100%;
+    height:auto;
+    display:block;
+    object-fit:contain;
+    background:#fff;
+}
+
+.poster-carousel .carousel-control-prev,
+.poster-carousel .carousel-control-next{
+    width:12%;
+}
+
+.poster-carousel .carousel-control-prev-icon,
+.poster-carousel .carousel-control-next-icon{
+    background-color:rgba(0,0,0,.5);
+    border-radius:50%;
+    padding:15px;
+}
+
+/* Large Tablet */
+
+@media (max-width:992px){
+
+.brand-title{
+    font-size:1.7rem;
+}
+
+.brand-subtitle{
+    font-size:13px;
+}
+
+.logo-img{
+    width:70px;
+    height:70px;
+}
+
+.modern-navbar .container{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+}
+
+.navbar-brand{
+    flex:0 0 60%;
+}
+
+.navbar-collapse{
+    flex:0 0 40%;
+    justify-content:flex-end;
+}
+
+.navbar-nav{
+    gap:35px;
+}
+
+.nav-link{
+    padding:10px 0 !important;
+    white-space:nowrap;
+}
+.hero{
+    min-height:auto;
+    padding:70px 20px;
+}
+
+.hero-content h1{
+    font-size:3rem;
+}
+
+.hero-banner{
+    margin-top:30px;
+}
+
+.slider-img{
+    height:400px;
+}
+
+}
+
+.home-link{
+    color:#1565C0 !important;
+}
+
+.register-link{
+    color:#2E7D32 !important;
+}
+
+.admin-link{
+    color:#6A1B9A !important;
+}
+
+.home-link:hover,
+.register-link:hover,
+.admin-link:hover{
+    color:#FF6F00 !important;
+}
+
+/* ==========================
+   Navigation Menu
+========================== */
+
+.navbar-nav{
+    gap:20px;
+}
+
+.nav-link{
+    font-size:18px;
+    font-weight:700;
+    padding:10px 18px !important;
+    border-radius:30px;
+    transition:all .3s ease;
+}
+
+/* Home */
+
+.home-link{
+    color:#1565C0 !important;
+}
+
+.home-link:hover{
+    background:#1565C0;
+    color:#fff !important;
+}
+
+/* Registration */
+
+.register-link{
+    color:#2E7D32 !important;
+}
+
+.register-link:hover{
+    background:#2E7D32;
+    color:#fff !important;
+}
+
+/* Admin */
+
+.admin-link{
+    color:#8E24AA !important;
+}
+
+.admin-link:hover{
+    background:#8E24AA;
+    color:#fff !important;
+}
+
+/* Icons */
+
+.nav-link i{
+    margin-right:6px;
+    font-size:18px;
+}
+/* Mobile */
+
+@media (max-width:768px){
+
+.top-bar .container-fluid{
+    flex-direction:column;
+    text-align:center;
+    gap:10px;
+}
+
+.welcome-text{
+    font-size:14px;
+}
+
+.clock-box{
+    margin-top:5px;
+}
+
+.modern-navbar{
+    background:white;
+    margin:15px;
+    border-radius:30px;
+    padding:15px 30px;
+    box-shadow:0 10px 30px rgba(0,0,0,.12);
+}
+
+.logo-img{
+    width:75px;
+    height:75px;
+    border-radius:50%;
+}
+
+.brand-title{
+    font-size:2rem;
+    font-weight:800;
+    margin:0;
+}
+
+.brand-subtitle{
+    font-size:14px;
+}
+
+.navbar-nav{
+    gap:25px;
+}
+
+.nav-link{
+    font-size:18px;
+    font-weight:600;
+    white-space:nowrap;
+}
+
+.hero{
+    padding:50px 15px;
+}
+
+.glass{
+    padding:25px;
+    border-radius:20px;
+}
+
+.hero-content h1{
+    font-size:2.2rem;
+}
+
+.hero-content h2{
+    font-size:1.3rem;
+}
+
+.hero-content h3{
+    font-size:1.1rem;
+}
+
+.hero-content p{
+    font-size:15px;
+}
+
+.hero-banner{
+    margin-top:25px;
+    max-width:100%;
+}
+
+.hero-features{
+    justify-content:center;
+}
+
+.feature-box{
+    width:100%;
+    text-align:center;
+}
+
+.btn-warning,
+.btn-outline-light,
+.btn-custom{
+    width:100%;
+    margin-bottom:10px;
+}
+
+.slider-img{
+    height:240px;
+}
+
+.counter{
+    margin-bottom:20px;
+}
+
+.card{
+    margin-bottom:20px;
+}
+
+footer{
+    text-align:center;
+}
+
+footer .text-end{
+    text-align:center !important;
+    margin-top:10px;
+}
+
+.whatsapp,
+.top-btn{
+    width:50px;
+    height:50px;
+    font-size:22px;
+    right:15px;
+}
+
+.whatsapp{
+    bottom:75px;
+}
+
+.top-btn{
+    bottom:15px;
+}
+
+}
+
+/* Small Phones */
+
+@media (max-width:576px){
+
+.brand-title{
+    font-size:16px;
+}
+
+.brand-subtitle{
+    display:none;
+}
+
+.logo-img{
+    width:45px;
+    height:45px;
+}
+
+.hero-content h1{
+    font-size:1.8rem;
+}
+
+.hero-content p{
+    font-size:14px;
+}
+
+.slider-img{
+    height:180px;
+}
+
+.notice{
+    font-size:14px;
+}
+
+.counter h2{
+    font-size:32px;
+}
+
+.counter p{
+    font-size:15px;
+}
+
+}
 .brand-subtitle{
     color:#666;
     font-size:15px;

@@ -1,48 +1,43 @@
-<div id="carouselExample"
-class="carousel slide mt-5"
-data-bs-ride="carousel">
+<div id="carouselExample" class="carousel slide poster-carousel mt-4" data-bs-ride="carousel">
 
-<div class="carousel-inner">
+    <div class="carousel-inner rounded shadow">
 
-<div class="carousel-item active">
+        <div class="carousel-item active">
+            <img src="{{ url_for('static', filename='images/banner.jpg') }}"
+                 class="d-block w-100 poster-slider-img"
+                 alt="Event Banner">
+        </div>
 
-<img src="{{ url_for('static', filename='images/banner.jpg') }}"
-class="d-block w-100 rounded">
+        <div class="carousel-item">
+            <img src="{{ url_for('static', filename='images/gallery1.jpg') }}"
+                 class="d-block w-100 poster-slider-img"
+                 alt="Gallery Image 1">
+        </div>
 
-</div>
+        <div class="carousel-item">
+            <img src="{{ url_for('static', filename='images/gallery2.jpg') }}"
+                 class="d-block w-100 poster-slider-img"
+                 alt="Gallery Image 2">
+        </div>
 
-<div class="carousel-item">
+    </div>
 
-<img src="{{ url_for('static', filename='images/gallery1.jpg') }}"
-class="d-block w-100 rounded">
+    <button class="carousel-control-prev"
+            type="button"
+            data-bs-target="#carouselExample"
+            data-bs-slide="prev">
 
-</div>
+        <span class="carousel-control-prev-icon"></span>
 
-<div class="carousel-item">
+    </button>
 
-<img src="{{ url_for('static', filename='images/gallery2.jpg') }}"
-class="d-block w-100 rounded">
+    <button class="carousel-control-next"
+            type="button"
+            data-bs-target="#carouselExample"
+            data-bs-slide="next">
 
-</div>
+        <span class="carousel-control-next-icon"></span>
 
-</div>
-
-<button class="carousel-control-prev"
-type="button"
-data-bs-target="#carouselExample"
-data-bs-slide="prev">
-
-<span class="carousel-control-prev-icon"></span>
-
-</button>
-
-<button class="carousel-control-next"
-type="button"
-data-bs-target="#carouselExample"
-data-bs-slide="next">
-
-<span class="carousel-control-next-icon"></span>
-
-</button>
+    </button>
 
 </div>
