@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Upload Certificate Template</title>
+</head>
+<body>
+
+<h2>Upload Certificate Template</h2>
+
+<form method="POST" enctype="multipart/form-data">
+
+    <input
+        type="text"
+        name="template_name"
+        placeholder="Template Name"
+        required>
+
+    <br><br>
+
+    <select name="certificate_type">
+
+        <option>Participation</option>
+
+        <option>Winner</option>
+
+        <option>Volunteer</option>
+
+    </select>
+
+    <br><br>
+
+    <input
+        type="file"
+        name="template"
+        required>
+
+    <br><br>
+
+    <button type="submit">
+        Upload Template
+    </button>
+
+</form>
+
+</body>
+</html>

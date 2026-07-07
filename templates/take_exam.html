@@ -1,0 +1,148 @@
+{% extends "base.html" %}
+
+{% block title %}Take Exam{% endblock %}
+
+{% block content %}
+<section class="container py-5">
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-3 mb-4">
+        <div>
+            <h2 class="mb-1">{{ exam.exam_title }}</h2>
+            <p class="text-muted mb-0">{{ participant.teacher_name }} | {{ exam.subject.subject_name if exam.subject else "Subject" }}</p>
+        </div>
+        <div class="alert alert-warning mb-0 py-2 px-3">
+            Time Limit: <strong>{{ exam.duration_minutes }} minutes</strong>
+            <span class="ms-3">Timer: <strong id="examTimer"></strong></span>
+        </div>
+    </div>
+
+    <div class="alert alert-danger">
+        Do not switch tabs, open another window, or leave this page during the exam. Allowed tab switches: <strong>{{ exam.tab_switch_limit }}</strong>.
+    </div>
+
+    {% if exam.instructions %}
+    <div class="alert alert-info">{{ exam.instructions }}</div>
+    {% endif %}
+
+    <form method="POST" action="{{ url_for('routes.submit_exam', exam_id=exam.id) }}" id="examForm">
+        <input type="hidden" name="violation_count" id="violationCount" value="0">
+
+        {% for question in questions %}
+        <div class="card shadow-sm border-0 rounded-4 mb-4">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-start gap-3 mb-3">
+                    <h5 class="mb-0">Q{{ loop.index }}. {{ question.question_text }}</h5>
+                    <span class="badge text-bg-light">{{ question.question_type|upper }}</span>
+                </div>
+
+                {% if question.question_type == "descriptive" %}
+                <textarea
+                    name="question_{{ question.id }}"
+                    class="form-control"
+                    rows="5"
+                    placeholder="Write your answer here"></textarea>
+                {% if question.model_answer %}
+                <small class="text-muted d-block mt-2">Model answer is available for evaluator review.</small>
+                {% endif %}
+                {% else %}
+                    {% for option_key, option_value in question.options_map().items() %}
+                    <div class="form-check mb-2">
+                        <input class="form-check-input" type="radio" name="question_{{ question.id }}" id="question_{{ question.id }}_{{ option_key }}" value="{{ option_key }}">
+                        <label class="form-check-label" for="question_{{ question.id }}_{{ option_key }}">
+                            <strong>{{ option_key }}.</strong> {{ option_value }}
+                        </label>
+                    </div>
+                    {% endfor %}
+                {% endif %}
+            </div>
+        </div>
+        {% else %}
+        <div class="alert alert-warning">No active questions are available for this exam.</div>
+        {% endfor %}
+
+        <button class="btn btn-success btn-lg">Submit Exam</button>
+    </form>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const deadlineAtMs = new Date("{{ deadline_at.isoformat() if deadline_at else server_now.isoformat() }}").getTime();
+const serverNowMs = new Date("{{ server_now.isoformat() }}").getTime();
+const clientNowMs = Date.now();
+const serverClientOffsetMs = serverNowMs - clientNowMs;
+let remainingSeconds = Math.max(0, Math.floor((deadlineAtMs - (Date.now() + serverClientOffsetMs)) / 1000));
+const timer = document.getElementById("examTimer");
+const examForm = document.getElementById("examForm");
+const violationCountInput = document.getElementById("violationCount");
+const tabSwitchLimit = {{ exam.tab_switch_limit|int }};
+const autoSubmitOnViolation = {{ 'true' if exam.auto_submit_on_violation else 'false' }};
+let submitted = false;
+let lastViolationAt = 0;
+
+function submitExamSafely() {
+    if (submitted) {
+        return;
+    }
+    submitted = true;
+    examForm.submit();
+}
+
+function renderTimer() {
+    const minutes = Math.floor(remainingSeconds / 60);
+    const seconds = remainingSeconds % 60;
+    timer.textContent = `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+}
+
+function registerViolation(reason) {
+    const now = Date.now();
+    if (now - lastViolationAt < 1200) {
+        return;
+    }
+    lastViolationAt = now;
+
+    const current = Number(violationCountInput.value || "0") + 1;
+    violationCountInput.value = String(current);
+
+    if (current <= tabSwitchLimit) {
+        alert(`${reason}. Warning ${current} of ${tabSwitchLimit}.`);
+    }
+
+    if (autoSubmitOnViolation && current > tabSwitchLimit) {
+        alert("Exam auto-submitted due to tab/window restriction violation.");
+        submitExamSafely();
+    }
+}
+
+renderTimer();
+
+const timerId = setInterval(function () {
+    remainingSeconds = Math.max(0, Math.floor((deadlineAtMs - (Date.now() + serverClientOffsetMs)) / 1000));
+    renderTimer();
+    if (remainingSeconds <= 0) {
+        clearInterval(timerId);
+        submitExamSafely();
+    }
+}, 1000);
+
+document.addEventListener("visibilitychange", function () {
+    if (document.hidden) {
+        registerViolation("Tab switch detected");
+    }
+});
+
+window.addEventListener("blur", function () {
+    registerViolation("Window focus lost");
+});
+
+window.addEventListener("contextmenu", function (event) {
+    event.preventDefault();
+});
+
+window.addEventListener("keydown", function (event) {
+    if (event.key === "F12" || (event.ctrlKey && event.shiftKey && ["I", "J", "C"].includes(event.key.toUpperCase())) || (event.ctrlKey && event.key.toUpperCase() === "U")) {
+        event.preventDefault();
+        registerViolation("Restricted key action detected");
+    }
+});
+</script>
+{% endblock %}

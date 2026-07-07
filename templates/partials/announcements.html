@@ -1,100 +1,75 @@
-<!-- ===========================
-     ANNOUNCEMENTS
-============================ -->
-
 <section class="container mt-5">
-
-    <div class="row">
-
-        <!-- Left Side -->
-
-        <div class="col-lg-8">
-
-            <div class="card shadow-lg">
-
-                <div class="card-header bg-danger text-white">
-
-                    📢 Latest Announcements
-
-                </div>
-
-                <div class="card-body">
-
-                    <marquee direction="up"
-                             height="220"
-                             scrollamount="2">
-
-                        <p>🎯 Online Registration Started.</p>
-
-                        <hr>
-
-                        <p>📄 Bring Original ID Card.</p>
-
-                        <hr>
-
-                        <p>🎓 Certificates will be issued after attendance verification.</p>
-
-                        <hr>
-
-                        <p>🕘 Reporting Time : 09:00 AM</p>
-
-                        <hr>
-
-                        <p>🍽 Lunch & Refreshments Available.</p>
-
-                        <hr>
-
-                        <p>📍 Mobile phones should be in Silent Mode.</p>
-
-                    </marquee>
-
-                </div>
-
-            </div>
-
+    <div class="ticker-shell">
+        <div class="ticker-label">
+            Latest Updates
         </div>
-
-        <!-- Right Side -->
-
-        <div class="col-lg-4">
-
-            <div class="card shadow-lg">
-
-                <div class="card-header bg-warning">
-
-                    ⚠ Important Notice
-
-                </div>
-
-                <div class="card-body">
-
-                    <h5 class="blink">
-
-                        Registration Closing Soon
-
-                    </h5>
-
-                    <hr>
-
-                    <p>
-
-                        Kindly complete your registration before the last date.
-
-                    </p>
-
-                    <a href="/register"
-                       class="btn btn-danger w-100">
-
-                        Register Now
-
-                    </a>
-
-                </div>
-
+        <div class="ticker-track-wrap">
+            <div class="ticker-track">
+                {% if ticker_messages %}
+                    {% for message in ticker_messages %}
+                    <span class="ticker-item">{{ message }}</span>
+                    {% endfor %}
+                    {% for message in ticker_messages %}
+                    <span class="ticker-item">{{ message }}</span>
+                    {% endfor %}
+                {% else %}
+                    <span class="ticker-item">New event registrations will appear here automatically.</span>
+                    <span class="ticker-item">Admin can activate events from the dashboard at any time.</span>
+                {% endif %}
             </div>
-
         </div>
-
     </div>
 
+    <div class="row g-4 mt-1">
+        <div class="col-lg-8">
+            <div class="card announcement-card h-100">
+                <div class="card-header bg-danger text-white">
+                    Registration Highlights
+                </div>
+                <div class="card-body">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <div class="highlight-box">
+                                <h5>Event-wise Forms</h5>
+                                <p class="mb-0">Each event can collect only the fields it actually needs.</p>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="highlight-box">
+                                <h5>Public Portal Control</h5>
+                                <p class="mb-0">Only active events are shown to participants on the public website.</p>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="highlight-box">
+                                <h5>No Duplicate Entries</h5>
+                                <p class="mb-0">The same mobile number cannot register twice for the same event.</p>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="highlight-box">
+                                <h5>Flexible Photo Rule</h5>
+                                <p class="mb-0">Photo upload can be required, optional, or fully disabled per event.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-4">
+            <div class="card notice-panel h-100">
+                <div class="card-header bg-warning">
+                    Important Notice
+                </div>
+                <div class="card-body">
+                    <h5 class="blink">Latest events are now live</h5>
+                    <p class="mb-3">Choose an active event, complete only the required fields, and finish registration in a few steps.</p>
+                    <a href="/register" class="btn btn-danger w-100">
+                        Register Now
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
 </section>

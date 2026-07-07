@@ -1,0 +1,77 @@
+{% extends "admin/admin_base.html" %}
+
+{% block title %}Exam Results{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-3 mb-4">
+    <div>
+        <h3 class="mb-1">{{ exam.exam_title }} Results</h3>
+        <p class="text-muted mb-0">{{ exam.subject.subject_name if exam.subject else "" }} | {{ exam.event.name if exam.event else "" }}</p>
+    </div>
+    <div class="d-flex gap-2 flex-wrap">
+        <a href="{{ url_for('admin.export_exam_results', exam_id=exam.id) }}" class="btn btn-success">
+            Export Result Sheet
+        </a>
+        <a href="{{ url_for('admin.exam_rank_list', exam_id=exam.id) }}" class="btn btn-outline-dark">
+            Rank List
+        </a>
+    </div>
+</div>
+
+<form method="POST" action="{{ url_for('admin.manual_score_exam', exam_id=exam.id) }}">
+    <div class="card">
+        <div class="card-header bg-primary text-white">Attempts and Manual Evaluation</div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-striped mb-0">
+                    <thead>
+                        <tr>
+                            <th>Participant</th>
+                            <th>Score</th>
+                            <th>Status</th>
+                            <th>Violations</th>
+                            <th>Descriptive Marks</th>
+                            <th>Submitted</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for attempt in attempts %}
+                        <tr>
+                            <td>
+                                <strong>{{ attempt.participant.teacher_name }}</strong>
+                                <div class="small text-muted">{{ attempt.participant.reg_id }}</div>
+                            </td>
+                            <td>{{ attempt.score }} / {{ attempt.total_marks }}</td>
+                            <td>{{ attempt.evaluation_status }}</td>
+                            <td>{{ attempt.violation_count }}</td>
+                            <td style="min-width:300px;">
+                                {% for answer in attempt.answers %}
+                                {% if answer.question and answer.question.question_type == 'descriptive' %}
+                                <div class="border rounded p-2 mb-2 bg-light">
+                                    <div class="small fw-bold">{{ answer.question.question_text }}</div>
+                                    <div class="small text-muted mb-2">Answer: {{ answer.text_answer or "Not Answered" }}</div>
+                                    {% if answer.question.model_answer %}
+                                    <div class="small mb-2"><strong>Model:</strong> {{ answer.question.model_answer }}</div>
+                                    {% endif %}
+                                    <input type="number" step="0.5" min="0" max="{{ answer.question.marks }}" name="manual_score_{{ answer.id }}" class="form-control form-control-sm" value="{{ '' if answer.manual_score is none else answer.manual_score }}">
+                                </div>
+                                {% endif %}
+                                {% endfor %}
+                            </td>
+                            <td>{{ attempt.submitted_at.strftime('%d-%m-%Y %H:%M') if attempt.submitted_at else '-' }}</td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="6" class="text-center py-4 text-muted">No results available yet.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    {% if attempts %}
+    <button class="btn btn-primary mt-3">Save Manual Evaluation</button>
+    {% endif %}
+</form>
+{% endblock %}

@@ -1,0 +1,980 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+<meta charset="UTF-8">
+
+<meta name="viewport"
+      content="width=device-width, initial-scale=1">
+
+<title>Admin Dashboard</title>
+
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+      rel="stylesheet">
+
+<link rel="stylesheet"
+href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
+
+<style>
+
+body{
+    background:#f4f6fb;
+    font-family:Arial, Helvetica, sans-serif;
+}
+
+/* ===========================
+TOP HEADER
+=========================== */
+
+.topbar{
+
+    background:linear-gradient(135deg,#0d6efd,#6610f2);
+
+    color:#fff;
+
+    border-radius:18px;
+
+    padding:25px;
+
+    box-shadow:0 10px 25px rgba(0,0,0,.12);
+
+}
+
+.topbar h2{
+
+    font-weight:bold;
+
+}
+
+.topbar p{
+
+    opacity:.9;
+
+}
+
+/* ===========================
+CARDS
+=========================== */
+
+.stat-card{
+
+    border:none;
+
+    border-radius:18px;
+
+    overflow:hidden;
+
+    transition:.3s;
+
+    box-shadow:0 6px 18px rgba(0,0,0,.08);
+
+}
+
+.stat-card:hover{
+
+    transform:translateY(-6px);
+
+}
+
+.stat-card .card-body{
+
+    padding:28px;
+
+}
+
+.stat-card h2{
+
+    font-size:38px;
+
+    font-weight:bold;
+
+}
+
+.stat-card h5{
+
+    margin-top:10px;
+
+}
+
+/* ===========================
+TABLE
+=========================== */
+
+.table-box{
+
+    background:#fff;
+
+    border-radius:18px;
+
+    padding:25px;
+
+    box-shadow:0 8px 20px rgba(0,0,0,.08);
+
+}
+
+.table{
+
+    vertical-align:middle;
+
+}
+
+.table thead{
+
+    background:#0d6efd;
+
+    color:#fff;
+
+}
+
+.table thead th{
+
+    white-space:nowrap;
+
+}
+
+/* ===========================
+PHOTO
+=========================== */
+
+.teacher-photo{
+
+    width:65px;
+
+    height:80px;
+
+    object-fit:cover;
+
+    border-radius:10px;
+
+    border:2px solid #ddd;
+
+}
+
+/* ===========================
+BADGES
+=========================== */
+
+.badge-present{
+
+    background:#198754;
+
+    color:#fff;
+
+    padding:8px 12px;
+
+    border-radius:20px;
+
+}
+
+.badge-absent{
+
+    background:#dc3545;
+
+    color:#fff;
+
+    padding:8px 12px;
+
+    border-radius:20px;
+
+}
+
+/* ===========================
+BUTTONS
+=========================== */
+
+.btn-action{
+
+    margin:2px;
+
+    border-radius:8px;
+
+}
+
+/* ===========================
+SEARCH
+=========================== */
+
+.search-box{
+
+    border-radius:10px;
+
+}
+
+/* ===========================
+FOOTER
+=========================== */
+
+.footer{
+
+    text-align:center;
+
+    color:#777;
+
+    margin-top:40px;
+
+    padding:20px;
+
+}
+
+/* ===========================
+RESPONSIVE
+=========================== */
+
+@media(max-width:768px){
+
+.topbar{
+
+text-align:center;
+
+}
+
+.table{
+
+font-size:13px;
+
+}
+
+.teacher-photo{
+
+width:55px;
+
+height:70px;
+
+}
+
+}
+
+</style>
+
+</head>
+
+<body>
+
+<div class="container-fluid p-4">
+
+<!-- ===========================
+HEADER
+=========================== -->
+
+<div class="topbar mb-4">
+
+<div class="row align-items-center">
+
+<div class="col-lg-8">
+
+<h2>
+
+<i class="fa-solid fa-chart-line"></i>
+
+Event Management System
+
+</h2>
+
+<p class="mb-0">
+
+Professional Administration Dashboard
+
+</p>
+
+</div>
+
+<div class="col-lg-4 text-end">
+
+<a href="/export"
+class="btn btn-success me-2">
+
+<i class="fa-solid fa-file-excel"></i>
+
+Export Excel
+
+</a>
+
+<a href="/admin/logout"
+class="btn btn-danger">
+
+<i class="fa-solid fa-right-from-bracket"></i>
+
+Logout
+
+</a>
+
+</div>
+
+</div>
+
+</div>
+<!-- ===========================
+DASHBOARD STATISTICS
+=========================== -->
+
+<div class="row g-4 mb-4">
+
+    <!-- Total Registration -->
+
+    <div class="col-lg-4 col-md-6">
+
+        <div class="card stat-card bg-primary text-white">
+
+            <div class="card-body text-center">
+
+                <i class="fa-solid fa-users fa-3x mb-3"></i>
+
+                <h2>{{ total }}</h2>
+
+                <h5>Total Registered</h5>
+
+            </div>
+
+        </div>
+
+    </div>
+
+
+</div>
+
+
+<!-- ===========================
+SEARCH PANEL
+=========================== -->
+
+<div class="table-box mb-4">
+
+    <div class="row align-items-center">
+
+        <div class="col-lg-8">
+
+            <form method="GET">
+
+                <div class="input-group">
+
+                    <span class="input-group-text">
+
+                        <i class="fa-solid fa-magnifying-glass"></i>
+
+                    </span>
+
+                    <input
+                        type="text"
+                        name="search"
+                        class="form-control search-box"
+                        placeholder="Search by Registration ID, Teacher Name or Mobile Number"
+                        value="{{ search }}">
+
+                    <select name="event_id" class="form-select" style="max-width:260px;">
+                        <option value="">All Events</option>
+                        {% for event in events %}
+                        <option value="{{ event.id }}" {% if selected_event_id == event.id %}selected{% endif %}>
+                            {{ event.name }}
+                        </option>
+                        {% endfor %}
+                    </select>
+
+                    <button
+                        class="btn btn-primary">
+
+                        Search
+
+                    </button>
+
+                    <a
+                        href="/admin"
+                        class="btn btn-secondary">
+
+                        Reset
+
+                    </a>
+
+                </div>
+
+            </form>
+
+        </div>
+
+        <div class="col-lg-4 text-end">
+
+            <h6 class="mt-3 mt-lg-0">
+
+                <i class="fa-solid fa-calendar-days"></i>
+
+                Dashboard Summary
+
+            </h6>
+
+            <small class="text-muted">
+
+                Showing latest registrations first
+
+            </small>
+
+        </div>
+
+    </div>
+
+</div>
+
+
+<!-- ===========================
+PARTICIPANT TABLE
+=========================== -->
+
+<div class="table-box">
+
+<div class="table-responsive">
+
+<table class="table table-bordered table-hover align-middle">
+
+<thead>
+
+<tr>
+
+<th>Photo</th>
+
+<th>Registration ID</th>
+
+<th>Event</th>
+
+<th>Participant Details</th>
+
+<th>Contact</th>
+
+<th>Additional Details</th>
+
+<th width="260">
+
+Actions
+
+</th>
+
+</tr>
+
+</thead>
+
+<tbody>
+{% for p in participants.items %}
+<tr>
+
+<!-- ================= PHOTO ================= -->
+
+<td class="text-center">
+
+{% if p.photo %}
+
+<img
+src="{{ url_for('static', filename='uploads/' + p.photo) }}"
+class="teacher-photo">
+
+{% else %}
+
+<div class="teacher-photo d-flex align-items-center justify-content-center bg-light text-muted small">
+No Photo
+</div>
+
+{% endif %}
+
+</td>
+
+
+<!-- ================= REGISTRATION ================= -->
+
+<td>
+
+<strong class="text-primary">
+
+{{ p.reg_id }}
+
+</strong>
+
+<br>
+
+<small class="text-muted">
+
+{{ p.block }}
+
+</small>
+
+</td>
+
+<td>
+<strong>{{ p.event.name if p.event else "Legacy Event" }}</strong>
+<br>
+<small class="text-muted">
+    {% if p.event and p.event.requires_photo %}
+    Photo Required
+    {% else %}
+    Photo Optional
+    {% endif %}
+</small>
+</td>
+
+
+<!-- ================= PARTICIPANT DETAILS ================= -->
+
+<td>
+
+<strong>
+
+{{ p.salutation }}
+
+{{ p.teacher_name }}
+
+</strong>
+
+<br>
+
+{% if p.designation %}
+<span class="badge bg-info">
+{{ p.designation }}
+</span>
+{% endif %}
+
+{% if p.subject %}
+<br><br>
+<small>
+<b>Subject :</b>
+{{ p.subject }}
+</small>
+{% endif %}
+
+</td>
+
+
+<!-- ================= CONTACT ================= -->
+
+<td>
+
+<i class="fa-solid fa-phone text-success"></i>
+
+{{ p.mobile }}
+
+<br>
+
+<i class="fa-solid fa-envelope text-danger"></i>
+
+{{ p.email }}
+
+</td>
+
+
+<!-- ================= ADDITIONAL ================= -->
+
+<td>
+
+{% if p.school_name %}
+<strong>{{ p.school_name }}</strong>
+<br>
+{% endif %}
+
+{% if p.school_area %}
+<small>{{ p.school_area }}</small>
+<br>
+{% endif %}
+
+{% if p.block %}
+<span class="badge bg-secondary">{{ p.block }}</span>
+{% endif %}
+
+{% for item in p.extra_items %}
+<div class="small mt-2">
+    <b>{{ item.label }}:</b> {{ item.value }}
+</div>
+{% endfor %}
+
+</td>
+
+
+<!-- ================= ACTION BUTTONS ================= -->
+
+<td>
+
+<div class="d-grid gap-2">
+
+<a
+href="/certificate/{{ p.id }}"
+class="btn btn-primary btn-sm btn-action">
+
+<i class="fa-solid fa-award"></i>
+
+Certificate
+
+</a>
+
+<a
+href="/delete/{{ p.id }}"
+class="btn btn-danger btn-sm btn-action"
+onclick="return confirm('Delete this participant?')">
+
+<i class="fa-solid fa-trash"></i>
+
+Delete
+
+</a>
+
+</div>
+
+</td>
+
+</tr>
+
+{% endfor %}
+{% if participants.items|length == 0 %}
+
+<tr>
+
+<td colspan="8" class="text-center py-5">
+
+<i class="fa-solid fa-circle-info fa-3x text-secondary mb-3"></i>
+
+<h5>No Participants Found</h5>
+
+<p class="text-muted">
+
+No registration records match your search.
+
+</p>
+
+</td>
+
+</tr>
+
+{% endif %}
+
+</tbody>
+
+</table>
+
+</div>
+
+<!-- ===========================
+TABLE SUMMARY
+=========================== -->
+
+<div class="row mt-4 align-items-center">
+
+<div class="col-md-6">
+
+<p class="mb-0">
+
+<strong>Total Records :</strong>
+
+{{ total }}
+
+</p>
+
+</div>
+
+<div class="col-md-6 text-end">
+
+<nav>
+
+<ul class="pagination justify-content-end mb-0">
+
+<!-- Previous -->
+
+{% if participants.has_prev %}
+
+<li class="page-item">
+
+<a class="page-link"
+href="?page={{ participants.prev_num }}&search={{ search }}{% if selected_event_id %}&event_id={{ selected_event_id }}{% endif %}">
+
+<i class="fa-solid fa-chevron-left"></i>
+
+Previous
+
+</a>
+
+</li>
+
+{% else %}
+
+<li class="page-item disabled">
+
+<span class="page-link">
+
+<i class="fa-solid fa-chevron-left"></i>
+
+Previous
+
+</span>
+
+</li>
+
+{% endif %}
+
+<!-- Current Page -->
+
+<li class="page-item active">
+
+<span class="page-link">
+
+Page {{ participants.page }}
+
+of
+
+{{ participants.pages }}
+
+</span>
+
+</li>
+
+<!-- Next -->
+
+{% if participants.has_next %}
+
+<li class="page-item">
+
+<a class="page-link"
+href="?page={{ participants.next_num }}&search={{ search }}{% if selected_event_id %}&event_id={{ selected_event_id }}{% endif %}">
+
+Next
+
+<i class="fa-solid fa-chevron-right"></i>
+
+</a>
+
+</li>
+
+{% else %}
+
+<li class="page-item disabled">
+
+<span class="page-link">
+
+Next
+
+<i class="fa-solid fa-chevron-right"></i>
+
+</span>
+
+</li>
+
+{% endif %}
+
+</ul>
+
+</nav>
+
+</div>
+
+</div>
+
+</div>
+<!-- ===========================
+QUICK ACTIONS
+=========================== -->
+
+<div class="row mt-4">
+
+<div class="col-md-3 mb-3">
+
+<a href="/export" class="btn btn-success w-100">
+
+<i class="fa-solid fa-file-excel"></i>
+
+Export Excel
+
+</a>
+
+</div>
+
+<div class="col-md-3 mb-3">
+
+<a href="/register" class="btn btn-primary w-100">
+
+<i class="fa-solid fa-user-plus"></i>
+
+New Registration
+
+</a>
+
+</div>
+
+<div class="col-md-3 mb-3">
+
+<a href="/admin/events" class="btn btn-dark w-100">
+
+<i class="fa-solid fa-calendar-check"></i>
+
+Manage Events
+
+</a>
+
+</div>
+
+<div class="col-md-3 mb-3">
+
+<a href="/layout-editor" class="btn btn-warning w-100">
+
+<i class="fa-solid fa-object-group"></i>
+
+Certificate Layout
+
+</a>
+
+</div>
+
+<div class="col-md-3 mb-3">
+
+<a href="/admin/exams" class="btn btn-info text-white w-100">
+
+<i class="fa-solid fa-laptop-file"></i>
+
+Online Exams
+
+</a>
+
+</div>
+
+<div class="col-md-3 mb-3">
+
+<a href="/admin/logout" class="btn btn-danger w-100">
+
+<i class="fa-solid fa-right-from-bracket"></i>
+
+Logout
+
+</a>
+
+</div>
+
+</div>
+<!-- ===========================
+FOOTER
+=========================== -->
+
+<div class="footer">
+
+<hr>
+
+<div class="row">
+
+<div class="col-md-6 text-start">
+
+© 2026 Event Registration Management System
+
+<br>
+
+<small class="text-muted">
+
+Department of School Education, Tamil Nadu
+
+</small>
+
+</div>
+
+<div class="col-md-6 text-end">
+
+Version 2.0
+
+<br>
+
+<small class="text-muted">
+
+Developed using Flask • Bootstrap 5 • SQLite
+
+</small>
+
+</div>
+
+</div>
+
+</div>
+
+</div>
+
+<!-- ===========================
+JAVASCRIPT
+=========================== -->
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+
+<script>
+
+// ===========================
+// AUTO REFRESH EVERY 5 MINUTES
+// ===========================
+
+setTimeout(function(){
+
+location.reload();
+
+},300000);
+
+
+// ===========================
+// DELETE CONFIRMATION
+// ===========================
+
+document.querySelectorAll(".btn-danger").forEach(function(btn){
+
+btn.addEventListener("click",function(e){
+
+if(btn.href.includes("/delete/")){
+
+if(!confirm("Are you sure you want to delete this participant?")){
+
+e.preventDefault();
+
+}
+
+}
+
+});
+
+});
+
+
+// ===========================
+// SEARCH USING ENTER KEY
+// ===========================
+
+const searchBox=document.querySelector(".search-box");
+
+if(searchBox){
+
+searchBox.focus();
+
+searchBox.addEventListener("keypress",function(e){
+
+if(e.key==="Enter"){
+
+this.form.submit();
+
+}
+
+});
+
+}
+
+
+// ===========================
+// TOOLTIPS
+// ===========================
+
+const tooltipTriggerList=[].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+
+tooltipTriggerList.map(function (tooltipTriggerEl){
+
+return new bootstrap.Tooltip(tooltipTriggerEl);
+
+});
+
+
+
+
+// ===========================
+// EXPORT SUCCESS
+// ===========================
+
+if(urlParams.get("export")=="done"){
+
+alert("Excel exported successfully.");
+
+}
+
+</script>
+
+</body>
+
+</html>

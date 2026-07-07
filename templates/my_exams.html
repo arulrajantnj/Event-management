@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+
+{% block title %}My Exams{% endblock %}
+
+{% block content %}
+<section class="container py-5">
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-3 mb-4">
+        <div>
+            <h2 class="mb-1">My Exams</h2>
+            <p class="text-muted mb-0">{{ participant.teacher_name }} | {{ event.name }}</p>
+        </div>
+        <a href="{{ url_for('routes.exam_logout') }}" class="btn btn-outline-danger">Logout</a>
+    </div>
+
+    <div class="row g-4">
+        {% for exam in exams %}
+        {% set attempt = attempts.get(exam.id) %}
+        {% set exam_status = exam_status_map.get(exam.id) %}
+        <div class="col-lg-4 col-md-6">
+            <div class="card h-100 shadow-sm border-0 rounded-4">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-start gap-2 mb-3">
+                        <span class="badge bg-info">{{ exam.subject.subject_name if exam.subject else "Subject" }}</span>
+                        {% if attempt %}
+                        <span class="badge bg-success">Attempted</span>
+                        {% else %}
+                        <span class="badge bg-warning text-dark">New</span>
+                        {% endif %}
+                    </div>
+                    <h4>{{ exam.exam_title }}</h4>
+                    <div class="small text-muted mb-3">
+                        Code: <code>{{ exam.exam_code }}</code><br>
+                        Duration: {{ exam.duration_minutes }} minutes<br>
+                        Questions: {{ exam.questions|selectattr('is_active')|list|length }}<br>
+                        Pass Mark: {{ exam.pass_mark }}<br>
+                        {% if exam.start_at %}Starts: {{ exam.start_at.strftime('%d-%m-%Y %H:%M') }}<br>{% endif %}
+                        {% if exam.end_at %}Ends: {{ exam.end_at.strftime('%d-%m-%Y %H:%M') }}{% endif %}
+                    </div>
+                    <div class="mb-3">
+                        {% if exam_status == "upcoming" %}
+                        <span class="badge bg-secondary">Upcoming</span>
+                        {% elif exam_status == "closed" %}
+                        <span class="badge bg-danger">Closed</span>
+                        {% else %}
+                        <span class="badge bg-success">Open Now</span>
+                        {% endif %}
+                    </div>
+                    {% if attempt %}
+                    <p class="mb-3">Latest Score: {{ attempt.score }} / {{ attempt.total_marks }}</p>
+                    <div class="d-grid gap-2">
+                        <a href="{{ url_for('routes.exam_result', attempt_id=attempt.id) }}" class="btn btn-outline-primary">View Result</a>
+                        <a href="{{ url_for('routes.hall_ticket', exam_id=exam.id) }}" class="btn btn-outline-dark">Hall Ticket</a>
+                    </div>
+                    {% else %}
+                    <div class="d-grid gap-2">
+                        <a href="{{ url_for('routes.hall_ticket', exam_id=exam.id) }}" class="btn btn-outline-dark">Hall Ticket</a>
+                        {% if exam_status == "open" %}
+                        <a href="{{ url_for('routes.take_exam', exam_id=exam.id) }}" class="btn btn-primary">Start Exam</a>
+                        {% else %}
+                        <button class="btn btn-secondary" disabled>Exam Not Available</button>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        {% else %}
+        <div class="col-12">
+            <div class="alert alert-info">No active exams are currently published for your event.</div>
+        </div>
+        {% endfor %}
+    </div>
+</section>
+{% endblock %}

@@ -1,0 +1,34 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Virtual Environment
+.venv/
+venv/
+env/
+
+# Environment Variables
+.env
+
+# Database
+instance/
+*.db
+
+# Uploads
+static/uploads/
+static/generated_certificates/
+static/generated_qr/
+qrcodes/
+
+# Excel
+*.xlsx
+
+# Test files
+tmp_*.py
+
+# VS Code
+.vscode/
+
+# Logs
+*.log

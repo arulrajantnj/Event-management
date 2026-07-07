@@ -36,8 +36,6 @@ href="{{ url_for('static',filename='css/style.css') }}">
 
 </head>
 
-<body>
-
 <a href="https://wa.me/919999999999" class="whatsapp">
     <i class="bi bi-whatsapp"></i>
 </a>
@@ -140,6 +138,18 @@ class="top-btn">
         </li>
 
         <li class="nav-item">
+            <a class="nav-link" href="/exam-login">
+                <i class="bi bi-journal-check"></i> Online Exam
+            </a>
+        </li>
+
+        <li class="nav-item">
+            <a class="nav-link" href="/downloads">
+                <i class="bi bi-download"></i> Downloads
+            </a>
+        </li>
+
+        <li class="nav-item">
             <a class="nav-link admin-link" href="/login">
                 <i class="bi bi-shield-lock-fill"></i> Admin
             </a>
@@ -192,6 +202,7 @@ ARULRAJAN V
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 
 <script src="{{ url_for('static',filename='js/script.js') }}"></script>
+{% block scripts %}{% endblock %}
 
 </body>
 

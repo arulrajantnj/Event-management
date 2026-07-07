@@ -1,0 +1,552 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<title>Certificate Layout Editor</title>
+
+<!-- Bootstrap -->
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+
+<!-- jQuery UI -->
+<link href="https://code.jquery.com/ui/1.13.2/themes/base/jquery-ui.css" rel="stylesheet">
+
+<!-- Custom CSS -->
+<link rel="stylesheet" href="{{ url_for('static', filename='css/editor.css') }}">
+
+<style>
+{% for font in fonts %}
+{% if font.file %}
+@font-face {
+    font-family: "{{ font.name }}";
+    src: url("{{ url_for('static', filename='fonts/' + font.file) }}");
+}
+{% endif %}
+{% endfor %}
+
+/* fallback safety styles */
+#certificateCanvas {
+    position: relative;
+    width: 100%;
+    max-width: 1100px;
+    height: 700px;
+    margin: auto;
+    border: 2px solid #ddd;
+    overflow: hidden;
+    background: #fff;
+}
+
+.certificate-bg {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    z-index: 0;
+}
+
+.draggable-field {
+    position: absolute;
+    padding: 5px 10px;
+    border: 1px dashed #333;
+    background: rgba(255,255,255,0.6);
+    cursor: move;
+    z-index: 2;
+    min-width: 80px;
+    min-height: 30px;
+    user-select: none;
+    font-size: 14px;
+    font-weight: 600;
+    line-height: 1.15;
+    white-space: nowrap;
+}
+
+.photo-box {
+    width: 120px;
+    height: 120px;
+    text-align: center;
+    line-height: 120px;
+}
+
+.qr-box {
+    width: 100px;
+    height: 100px;
+    text-align: center;
+    line-height: 100px;
+}
+
+.template-error {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #b00020;
+    font-weight: 600;
+    background: #fff5f5;
+    z-index: 1;
+}
+</style>
+
+</head>
+
+<body>
+
+<div class="container-fluid">
+
+<div class="row">
+
+<!-- ================= LEFT PANEL ================= -->
+<div class="col-md-2 bg-dark text-white vh-100 p-3">
+
+<h4 class="mb-3">Layout Editor</h4>
+
+<div class="list-group">
+
+<button class="list-group-item list-group-item-action field-btn" data-field="teacher_name">
+Teacher Name
+</button>
+
+<button class="list-group-item list-group-item-action field-btn" data-field="designation">
+Designation
+</button>
+
+<button class="list-group-item list-group-item-action field-btn" data-field="subject">
+Subject
+</button>
+
+<button class="list-group-item list-group-item-action field-btn" data-field="school_name">
+School Name
+</button>
+
+<button class="list-group-item list-group-item-action field-btn" data-field="school_area">
+School Area
+</button>
+
+<button class="list-group-item list-group-item-action field-btn" data-field="block">
+Block
+</button>
+
+<button class="list-group-item list-group-item-action field-btn" data-field="registration_id">
+Registration ID
+</button>
+
+<button class="list-group-item list-group-item-action field-btn" data-field="date">
+Date
+</button>
+
+<button class="list-group-item list-group-item-action field-btn" data-field="qr_code">
+QR Code
+</button>
+
+<button class="list-group-item list-group-item-action field-btn" data-field="teacher_photo">
+Teacher Photo
+</button>
+
+</div>
+
+</div>
+
+<!-- ================= CENTER PANEL ================= -->
+<div class="col-md-8 p-3 text-center">
+
+<h3 class="mb-3">Certificate Designer</h3>
+
+<div id="certificateCanvas"
+     data-template="{{ template.id }}">
+
+<!-- Background -->
+<img
+src="{{ template_image_url }}"
+class="certificate-bg"
+alt="Certificate template"
+draggable="false"
+onerror="this.insertAdjacentHTML('afterend', '<div class=&quot;template-error&quot;>Certificate template image could not load.</div>'); this.style.display='none';">
+
+<!-- Dynamic fields will be injected here by JS -->
+
+</div>
+
+</div>
+
+<!-- ================= RIGHT PANEL ================= -->
+<div class="col-md-2 bg-light vh-100 p-3">
+
+<h4>Properties</h4>
+
+<hr>
+
+<label>Font Size</label>
+<input type="number" id="fontSize" class="form-control" value="14" min="6" max="120">
+
+<br>
+
+<label>Text Color</label>
+<input type="color" id="fontColor" class="form-control form-control-color" value="#000000">
+
+<br>
+
+<label>Font Family</label>
+<select id="fontFamily" class="form-select">
+{% for font in fonts %}
+<option value="{{ font.name }}" {% if font.name == "Arial" %}selected{% endif %}>{{ font.name }}</option>
+{% endfor %}
+</select>
+
+<br>
+
+<label>Upload Font</label>
+<form id="fontUploadForm" enctype="multipart/form-data">
+<input type="file" id="fontFile" name="font" class="form-control" accept=".ttf,.otf,.woff,.woff2">
+<button type="submit" class="btn btn-outline-primary w-100 mt-2">
+Upload Font
+</button>
+</form>
+
+<br>
+
+<label>Photo Shape</label>
+<select id="photoShape" class="form-select">
+<option value="rectangle">Rectangle</option>
+<option value="circle">Circle</option>
+<option value="rounded">Rounded</option>
+</select>
+
+<br>
+
+<button id="saveLayout" class="btn btn-success w-100">
+💾 Save Layout
+</button>
+
+<br><br>
+
+<a href="/admin" class="btn btn-secondary w-100">
+Back
+</a>
+
+</div>
+
+</div>
+
+</div>
+
+<!-- ================= SCRIPTS ================= -->
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://code.jquery.com/ui/1.13.2/jquery-ui.min.js"></script>
+
+<script>
+let templateId = $("#certificateCanvas").data("template");
+let fieldsData = [];
+let selectedField = null;
+const defaultFontSize = 14;
+const defaultFontFamily = "Noto Sans Tamil";
+
+// ================= LOAD LAYOUT =================
+$(document).ready(function () {
+
+    $.get(`/api/layout/${templateId}`, function (data) {
+
+        fieldsData = data;
+        renderFields();
+
+    });
+
+});
+
+// ================= RENDER FIELDS =================
+function renderFields() {
+
+    $(".draggable-field").remove();
+
+    fieldsData.forEach(field => {
+
+        let div = $(`
+            <div class="draggable-field" id="${field.field_name}">
+                ${field.field_name.replaceAll("_", " ")}
+            </div>
+        `);
+
+        div.css({
+            left: field.x + "px",
+            top: field.y + "px",
+            width: field.width + "px",
+            height: field.height + "px",
+            fontSize: field.font_size + "px",
+            fontFamily: field.font_family || defaultFontFamily,
+            color: field.font_color,
+            fontWeight: field.font_weight || "600",
+            textAlign: field.text_align || "left",
+            transform: `rotate(${field.rotation}deg)`
+        });
+
+        ensureFontOption(field.font_family || defaultFontFamily);
+
+        if (field.shape === "circle") div.addClass("circle");
+        if (field.shape === "rounded") div.addClass("rounded-photo");
+
+        $("#certificateCanvas").append(div);
+
+        makeDraggable(div);
+    });
+}
+
+// ================= DRAG + RESIZE =================
+function makeDraggable(element) {
+
+    element.on("click", function () {
+        selectField($(this));
+    });
+
+    element.draggable({
+        containment: "#certificateCanvas",
+        stop: function () {
+            updateField($(this));
+        }
+    });
+
+    element.resizable({
+        stop: function () {
+            updateField($(this));
+        }
+    });
+}
+
+// ================= SELECT FIELD =================
+function selectField(el) {
+
+    $(".draggable-field").removeClass("selected");
+
+    el.addClass("selected");
+
+    selectedField = el;
+
+    $("#fontSize").val(parseInt(el.css("font-size"), 10) || defaultFontSize);
+    $("#fontColor").val(rgbToHex(el.css("color")) || "#000000");
+
+    let fontFamily = cleanFontFamily(el.css("font-family")) || defaultFontFamily;
+
+    ensureFontOption(fontFamily);
+    $("#fontFamily").val(fontFamily);
+}
+
+// ================= UPDATE FIELD =================
+function updateField(el) {
+
+    let id = el.attr("id");
+
+    let field = fieldsData.find(f => f.field_name === id);
+
+    if (field) {
+
+        field.x = el.position().left;
+        field.y = el.position().top;
+        field.width = el.width();
+        field.height = el.height();
+        field.font_size = parseInt(el.css("font-size"), 10) || defaultFontSize;
+        field.font_family = cleanFontFamily(el.css("font-family")) || defaultFontFamily;
+        field.font_color = rgbToHex(el.css("color")) || "#000000";
+        field.font_weight = el.css("font-weight") || "600";
+        field.text_align = el.css("text-align") || "left";
+        field.shape =
+            el.hasClass("circle") ? "circle" :
+            el.hasClass("rounded-photo") ? "rounded" :
+            "rectangle";
+    }
+}
+
+// ================= ADD / SELECT PLACEHOLDER =================
+$(".field-btn").click(function () {
+
+    let fieldName = $(this).data("field");
+    let existing = fieldsData.find(f => f.field_name === fieldName);
+
+    if (!existing) {
+        existing = {
+            field_name: fieldName,
+            x: 40,
+            y: 40,
+            width: 120,
+            height: 28,
+            font_size: defaultFontSize,
+            font_family: defaultFontFamily,
+            font_color: "#000000",
+            font_weight: "600",
+            text_align: "left",
+            shape: "rectangle",
+            rotation: 0,
+            visible: true
+        };
+
+        fieldsData.push(existing);
+        renderFields();
+    }
+
+    selectField($("#" + fieldName));
+});
+
+// ================= PROPERTIES =================
+$("#fontSize").on("input", function () {
+
+    if (!selectedField) return;
+
+    selectedField.css("font-size", $(this).val() + "px");
+    updateField(selectedField);
+});
+
+$("#fontColor").on("input", function () {
+
+    if (!selectedField) return;
+
+    selectedField.css("color", $(this).val());
+    updateField(selectedField);
+});
+
+$("#fontFamily").change(function () {
+
+    if (!selectedField) return;
+
+    selectedField.css("font-family", $(this).val());
+    updateField(selectedField);
+});
+
+$("#photoShape").change(function () {
+
+    let target = selectedField || $("#teacher_photo");
+    let shape = $(this).val();
+
+    target.removeClass("circle rounded-photo");
+
+    if (shape === "circle") target.addClass("circle");
+    if (shape === "rounded") target.addClass("rounded-photo");
+
+    updateField(target);
+});
+
+// ================= FONT UPLOAD =================
+$("#fontUploadForm").submit(function (event) {
+
+    event.preventDefault();
+
+    let file = $("#fontFile")[0].files[0];
+
+    if (!file) {
+        alert("Please choose a font file.");
+        return;
+    }
+
+    let formData = new FormData();
+    formData.append("font", file);
+
+    $.ajax({
+        url: "/api/upload-font",
+        type: "POST",
+        data: formData,
+        contentType: false,
+        processData: false,
+        success: function (response) {
+            addUploadedFont(response.font);
+            $("#fontFile").val("");
+            alert("Font uploaded successfully.");
+        },
+        error: function (xhr) {
+            let message = xhr.responseJSON && xhr.responseJSON.error
+                ? xhr.responseJSON.error
+                : "Font upload failed";
+            alert(message);
+        }
+    });
+});
+
+function addUploadedFont(font) {
+
+    if (!font || !font.name || !font.file) return;
+
+    ensureFontOption(font.name);
+
+    if (!$(`#fontFamily option[value="${cssEscape(font.name)}"]`).length) {
+        $("#fontFamily").append(
+            $("<option></option>").val(font.name).text(font.name)
+        );
+    }
+
+    let fontFace = new FontFace(
+        font.name,
+        `url("/static/fonts/${font.file}")`
+    );
+
+    fontFace.load().then(function (loadedFace) {
+        document.fonts.add(loadedFace);
+        $("#fontFamily").val(font.name).trigger("change");
+    });
+}
+
+function ensureFontOption(fontFamily) {
+
+    if (!fontFamily) return;
+
+    let escapedValue = cssEscape(fontFamily);
+
+    if (!$(`#fontFamily option[value="${escapedValue}"]`).length) {
+        $("#fontFamily").append(
+            $("<option></option>").val(fontFamily).text(fontFamily)
+        );
+    }
+}
+
+function cssEscape(value) {
+
+    if (window.CSS && CSS.escape) {
+        return CSS.escape(value);
+    }
+
+    return String(value).replaceAll("\\", "\\\\").replaceAll('"', '\\"');
+}
+
+// ================= SAVE =================
+$("#saveLayout").click(function () {
+
+    $.ajax({
+        url: "/api/save-layout",
+        type: "POST",
+        contentType: "application/json",
+        data: JSON.stringify({
+            template_id: templateId,
+            fields: fieldsData
+        }),
+        success: function () {
+            alert("Layout Saved Successfully!");
+        },
+        error: function () {
+            alert("Error saving layout");
+        }
+    });
+
+});
+
+function cleanFontFamily(value) {
+
+    if (!value) return "";
+
+    return value.split(",")[0].replaceAll('"', "").replaceAll("'", "").trim();
+}
+
+function rgbToHex(rgb) {
+
+    if (!rgb || !rgb.startsWith("rgb")) return rgb;
+
+    let nums = rgb.match(/\d+/g);
+
+    if (!nums || nums.length < 3) return "#000000";
+
+    return (
+        "#" +
+        nums.slice(0, 3).map(x =>
+            ("0" + parseInt(x, 10).toString(16)).slice(-2)
+        ).join("")
+    );
+}
+
+</script>
+
+</body>
+</html>

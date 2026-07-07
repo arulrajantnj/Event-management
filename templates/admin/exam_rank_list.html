@@ -1,0 +1,73 @@
+{% extends "admin/admin_base.html" %}
+
+{% block title %}Exam Rank List{% endblock %}
+
+{% block content %}
+<div class="row g-4 mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header bg-dark text-white">
+                {{ exam.exam_title }} Rank List and Toppers
+            </div>
+            <div class="card-body">
+                <div class="row g-3">
+                    {% for attempt in top_attempts %}
+                    <div class="col-md-4">
+                        <div class="border rounded-4 p-3 bg-light h-100">
+                            <div class="small text-muted">Topper #{{ loop.index }}</div>
+                            <h5 class="mb-1">{{ attempt.participant.teacher_name }}</h5>
+                            <div>{{ attempt.participant.reg_id }}</div>
+                            <div class="mt-2"><strong>{{ attempt.score }}</strong> / {{ attempt.total_marks }}</div>
+                        </div>
+                    </div>
+                    {% else %}
+                    <div class="col-12 text-muted">No topper data yet.</div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header bg-primary text-white">Full Rank List</div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-striped mb-0">
+                <thead>
+                    <tr>
+                        <th>Rank</th>
+                        <th>Participant</th>
+                        <th>Registration ID</th>
+                        <th>Score</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for attempt in attempts %}
+                    <tr>
+                        <td>{{ loop.index }}</td>
+                        <td>{{ attempt.participant.teacher_name }}</td>
+                        <td>{{ attempt.participant.reg_id }}</td>
+                        <td>{{ attempt.score }} / {{ attempt.total_marks }}</td>
+                        <td>
+                            {% if attempt.evaluation_status == 'pending_review' %}
+                            <span class="badge bg-warning text-dark">Pending Review</span>
+                            {% elif attempt.score >= exam.pass_mark %}
+                            <span class="badge bg-success">Passed</span>
+                            {% else %}
+                            <span class="badge bg-danger">Failed</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="5" class="text-center py-4 text-muted">No rank list available yet.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

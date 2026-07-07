@@ -1,0 +1,211 @@
+{% extends "admin/admin_base.html" %}
+
+{% block title %}Manage Event Exams{% endblock %}
+
+{% block content %}
+<div class="row g-4">
+    <div class="col-lg-4">
+        <div class="card mb-4">
+            <div class="card-header bg-primary text-white">
+                Add Subject
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <strong>{{ event.name }}</strong>
+                    <div class="small text-muted">
+                        {% if event.exam_enabled %}Exam portal enabled{% else %}Enable exam portal from event settings first{% endif %}
+                    </div>
+                </div>
+                <form method="POST" action="{{ url_for('admin.add_exam_subject', event_id=event.id) }}">
+                    <div class="mb-3">
+                        <label class="form-label">Subject Name</label>
+                        <input type="text" name="subject_name" class="form-control" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Description</label>
+                        <textarea name="description" class="form-control" rows="3"></textarea>
+                    </div>
+                    <div class="form-check mb-3">
+                        <input class="form-check-input" type="checkbox" name="is_active" id="subject_active" checked>
+                        <label class="form-check-label" for="subject_active">Active subject</label>
+                    </div>
+                    <button class="btn btn-primary w-100">Save Subject</button>
+                </form>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header bg-dark text-white">
+                Subjects
+            </div>
+            <div class="card-body p-0">
+                <div class="list-group list-group-flush">
+                    {% for subject in subjects %}
+                    <div class="list-group-item">
+                        <div class="d-flex justify-content-between gap-2">
+                            <div>
+                                <strong>{{ subject.subject_name }}</strong>
+                                <div class="small text-muted">{{ subject.exams|length }} exams</div>
+                            </div>
+                            <div class="text-end">
+                                <a href="{{ url_for('admin.edit_exam_subject', subject_id=subject.id) }}" class="btn btn-sm btn-outline-success mb-1">Edit</a>
+                                <form method="POST" action="{{ url_for('admin.delete_exam_subject', subject_id=subject.id) }}" class="d-inline">
+                                    <button class="btn btn-sm btn-outline-danger mb-1" onclick="return confirm('Delete this subject?')">Delete</button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                    {% else %}
+                    <div class="list-group-item text-muted">No subjects added yet.</div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-8">
+        <div class="card mb-4">
+            <div class="card-header bg-success text-white">
+                Create Exam
+            </div>
+            <div class="card-body">
+                <form method="POST">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Subject</label>
+                            <select name="subject_id" class="form-select" required>
+                                <option value="">Select Subject</option>
+                                {% for subject in subjects %}
+                                <option value="{{ subject.id }}">{{ subject.subject_name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Exam Code</label>
+                            <input type="text" name="exam_code" class="form-control" placeholder="maths-test-1" required>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Exam Title</label>
+                            <input type="text" name="exam_title" class="form-control" required>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Duration (Minutes)</label>
+                            <input type="number" name="duration_minutes" class="form-control" value="30" min="1">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Marks Per Question</label>
+                            <input type="number" step="0.5" name="marks_per_question" class="form-control" value="1">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Pass Mark</label>
+                            <input type="number" step="0.5" name="pass_mark" class="form-control" value="0">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Start Date & Time</label>
+                            <input type="datetime-local" name="start_at" class="form-control">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">End Date & Time</label>
+                            <input type="datetime-local" name="end_at" class="form-control">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Maximum Attempts</label>
+                            <input type="number" name="max_attempts" class="form-control" value="1" min="1">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Negative Marks</label>
+                            <input type="number" step="0.5" name="negative_marks" class="form-control" value="0">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Tab Switch Limit</label>
+                            <input type="number" name="tab_switch_limit" class="form-control" value="3" min="0">
+                        </div>
+                        <div class="col-md-6 d-flex align-items-end">
+                            <div class="form-check me-3">
+                                <input class="form-check-input" type="checkbox" name="auto_submit_on_violation" id="auto_submit_on_violation_create" checked>
+                                <label class="form-check-label" for="auto_submit_on_violation_create">Auto submit on violation</label>
+                            </div>
+                        </div>
+                        <div class="col-md-6 d-flex align-items-end">
+                            <div class="form-check me-3">
+                                <input class="form-check-input" type="checkbox" name="show_result_immediately" id="show_result_immediately" checked>
+                                <label class="form-check-label" for="show_result_immediately">Show result immediately</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="is_active" id="exam_active" checked>
+                                <label class="form-check-label" for="exam_active">Publish exam</label>
+                            </div>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Instructions</label>
+                            <textarea name="instructions" class="form-control" rows="4" placeholder="Write general exam instructions here"></textarea>
+                        </div>
+                    </div>
+                    <button class="btn btn-success mt-3">Create Exam</button>
+                </form>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header bg-dark text-white">
+                Exams
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-striped mb-0">
+                        <thead>
+                            <tr>
+                                <th>Exam</th>
+                                <th>Subject</th>
+                                <th>Questions</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for exam in exams %}
+                            <tr>
+                                <td>
+                                    <strong>{{ exam.exam_title }}</strong>
+                                    <div><code>{{ exam.exam_code }}</code></div>
+                                    <div class="small text-muted">
+                                        {{ exam.duration_minutes }} min | Pass: {{ exam.pass_mark }} | Negative: {{ exam.negative_marks }}
+                                    </div>
+                                    {% if exam.start_at or exam.end_at %}
+                                    <div class="small text-muted">
+                                        {% if exam.start_at %}Starts {{ exam.start_at.strftime('%d-%m-%Y %H:%M') }}{% endif %}
+                                        {% if exam.start_at and exam.end_at %} | {% endif %}
+                                        {% if exam.end_at %}Ends {{ exam.end_at.strftime('%d-%m-%Y %H:%M') }}{% endif %}
+                                    </div>
+                                    {% endif %}
+                                </td>
+                                <td>{{ exam.subject.subject_name if exam.subject else "-" }}</td>
+                                <td>{{ exam.questions|length }}</td>
+                                <td>
+                                    {% if exam.is_active %}
+                                    <span class="badge bg-success">Published</span>
+                                    {% else %}
+                                    <span class="badge bg-secondary">Draft</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <a href="{{ url_for('admin.edit_online_exam', exam_id=exam.id) }}" class="btn btn-sm btn-outline-primary mb-1">Manage</a>
+                                    <a href="{{ url_for('admin.exam_results', exam_id=exam.id) }}" class="btn btn-sm btn-outline-success mb-1">Results</a>
+                                    <form method="POST" action="{{ url_for('admin.delete_online_exam', exam_id=exam.id) }}" class="d-inline">
+                                        <button class="btn btn-sm btn-outline-danger mb-1" onclick="return confirm('Delete this exam?')">Delete</button>
+                                    </form>
+                                </td>
+                            </tr>
+                            {% else %}
+                            <tr>
+                                <td colspan="5" class="text-center py-4 text-muted">No exams created yet.</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Certificate Templates</title>
+</head>
+<body>
+
+<h2>Uploaded Certificate Templates</h2>
+
+<table border="1" cellpadding="10">
+
+<tr>
+    <th>ID</th>
+    <th>Template</th>
+    <th>Type</th>
+</tr>
+
+{% for t in templates %}
+
+<tr>
+
+    <td>{{ t.id }}</td>
+
+    <td>{{ t.template_name }}</td>
+
+    <td>{{ t.certificate_type }}</td>
+
+</tr>
+
+{% endfor %}
+
+</table>
+
+</body>
+</html>

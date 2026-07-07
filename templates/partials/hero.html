@@ -24,7 +24,7 @@
 
                     <p class="lead text-white mt-4">
 
-                        Digital Registration • QR Attendance •
+                        Digital Registration • QR Verification •
                         Certificates • Reports • Smart Event Management
 
                     </p>
@@ -45,7 +45,32 @@
 
                         </a>
 
+                        <a href="/exam-login"
+                           class="btn btn-outline-light btn-lg mt-2 mt-lg-0">
+
+                            Online Exam
+
+                        </a>
+
                     </div>
+
+                    {% if events %}
+                    <div class="mt-4">
+                        <p class="text-white-50 mb-2">Active Events</p>
+                        <div class="d-flex flex-wrap gap-2">
+                            {% for event in events %}
+                            <a
+                                href="{{ url_for('routes.register', event=event.slug) }}"
+                                class="btn btn-sm {% if event.requires_photo %}btn-outline-light{% else %}btn-light{% endif %}">
+                                {{ event.name }}
+                                {% if not event.requires_photo %}
+                                <span class="ms-1 badge text-bg-warning text-dark">No Photo</span>
+                                {% endif %}
+                            </a>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endif %}
 
                 </div>
 

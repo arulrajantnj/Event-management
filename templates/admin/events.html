@@ -1,0 +1,199 @@
+{% extends "admin/admin_base.html" %}
+
+{% block title %}Manage Events{% endblock %}
+
+{% block content %}
+
+<div class="row g-4">
+
+<div class="col-lg-5">
+    <div class="card">
+        <div class="card-header bg-primary text-white">
+            Add Event
+        </div>
+        <div class="card-body">
+            <form method="POST">
+                <div class="mb-3">
+                    <label class="form-label">Event Name</label>
+                    <input type="text" name="name" class="form-control" required>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Event Slug</label>
+                    <input type="text" name="slug" class="form-control" placeholder="sports-meet-2026" required>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Registration Type</label>
+                    <select name="registration_type" class="form-select">
+                        {% for value, label in registration_type_choices %}
+                        <option value="{{ value }}">{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Description</label>
+                    <textarea name="description" class="form-control" rows="4"></textarea>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Scrolling Message</label>
+                    <input type="text" name="marquee_message" class="form-control" placeholder="New event registration is now live.">
+                </div>
+
+                <div class="border rounded-4 p-3 mb-3 bg-light">
+                    <h6 class="mb-3">Photo Settings</h6>
+                    <div class="form-check mb-2">
+                        <input class="form-check-input" type="checkbox" name="collect_photo" id="collect_photo" checked>
+                        <label class="form-check-label" for="collect_photo">
+                            Show photo upload field
+                        </label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" name="requires_photo" id="requires_photo">
+                        <label class="form-check-label" for="requires_photo">
+                            Make photo compulsory
+                        </label>
+                    </div>
+                </div>
+
+                <div class="border rounded-4 p-3 mb-3 bg-light">
+                    <h6 class="mb-3">Payment Gateway</h6>
+                    <div class="form-check mb-2">
+                        <input class="form-check-input" type="checkbox" name="payment_enabled" id="payment_enabled">
+                        <label class="form-check-label" for="payment_enabled">
+                            Enable payment for this event
+                        </label>
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label">Amount</label>
+                        <input type="number" step="0.01" min="0" name="payment_amount" class="form-control" placeholder="0.00">
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label">Payment Link</label>
+                        <input type="url" name="payment_link" class="form-control" placeholder="https://payment-link.example">
+                    </div>
+                    <div class="mb-0">
+                        <label class="form-label">Payment Notes</label>
+                        <textarea name="payment_notes" class="form-control" rows="3" placeholder="Instructions shown to participants"></textarea>
+                    </div>
+                </div>
+
+                <div class="border rounded-4 p-3 mb-3 bg-light">
+                    <h6 class="mb-3">Communication</h6>
+                    <div class="form-check mb-2">
+                        <input class="form-check-input" type="checkbox" name="whatsapp_ack_enabled" id="whatsapp_ack_enabled">
+                        <label class="form-check-label" for="whatsapp_ack_enabled">
+                            Enable WhatsApp acknowledgement
+                        </label>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">WhatsApp Template</label>
+                        <textarea name="whatsapp_template" class="form-control" rows="3" placeholder="Use {event_name}, {reg_id}, {participant_name}"></textarea>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" name="qr_sharing_enabled" id="qr_sharing_enabled" checked>
+                        <label class="form-check-label" for="qr_sharing_enabled">
+                            Allow QR code download / sharing
+                        </label>
+                    </div>
+                </div>
+
+                <div class="form-check mb-3">
+                    <input class="form-check-input" type="checkbox" name="is_active" id="is_active" checked>
+                    <label class="form-check-label" for="is_active">
+                        Active for public portal
+                    </label>
+                </div>
+
+                <button class="btn btn-success w-100">
+                    <i class="fa-solid fa-plus"></i>
+                    Save Event
+                </button>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div class="col-lg-7">
+    <div class="card">
+        <div class="card-header bg-dark text-white">
+            Available Events
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-striped mb-0">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Setup</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for event in events %}
+                        <tr>
+                            <td>
+                                <strong>{{ event.name }}</strong>
+                                <div><code>{{ event.slug }}</code></div>
+                                {% if event.description %}
+                                <div class="small text-muted">{{ event.description }}</div>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <div class="small mb-2">
+                                    <span class="badge text-bg-info">{{ event.registration_type|title }}</span>
+                                    <span class="badge {% if event.collect_photo and event.requires_photo %}bg-primary{% elif event.collect_photo %}bg-warning text-dark{% else %}bg-secondary{% endif %}">
+                                        {% if event.collect_photo and event.requires_photo %}Photo Required{% elif event.collect_photo %}Photo Optional{% else %}No Photo{% endif %}
+                                    </span>
+                                </div>
+                                <div class="small d-flex flex-wrap gap-1">
+                                    <span class="badge text-bg-light">{{ event.registration_fields|length }} Fields</span>
+                                    {% if event.payment_enabled %}<span class="badge text-bg-success">Payment</span>{% endif %}
+                                    {% if event.whatsapp_ack_enabled %}<span class="badge text-bg-success">WhatsApp</span>{% endif %}
+                                    {% if event.qr_sharing_enabled %}<span class="badge text-bg-success">QR Share</span>{% endif %}
+                                    {% if event.exam_enabled %}<span class="badge text-bg-primary">Online Exam</span>{% endif %}
+                                </div>
+                            </td>
+                            <td>
+                                {% if event.is_active %}
+                                <span class="badge bg-success">Active</span>
+                                {% else %}
+                                <span class="badge bg-secondary">Inactive</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <a href="{{ url_for('admin.edit_event', id=event.id) }}" class="btn btn-sm btn-outline-success mb-1">
+                                    Edit
+                                </a>
+                                <form method="POST" action="{{ url_for('admin.toggle_event_active', id=event.id) }}" class="d-inline">
+                                    <button class="btn btn-sm btn-outline-dark mb-1">
+                                        Toggle Active
+                                    </button>
+                                </form>
+                                <form method="POST" action="{{ url_for('admin.toggle_event_photo_rule', id=event.id) }}" class="d-inline">
+                                    <button class="btn btn-sm btn-outline-primary mb-1">
+                                        Toggle Photo Rule
+                                    </button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="4" class="text-center py-4 text-muted">
+                                No events configured yet.
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+</div>
+
+{% endblock %}

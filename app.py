@@ -1,253 +1,627 @@
-from flask import Flask, render_template, request, redirect, session, send_file
-from flask_sqlalchemy import SQLAlchemy
-from datetime import datetime
-import pandas as pd
-import qrcode
+from flask import Flask
 import os
-from reportlab.pdfgen import canvas
+import sqlite3
+
+from models import db, Event, EventField, ExamAnswer, ExamAttempt, ExamQuestion, ExamSubject, OnlineExam
+
+from routes import routes as routes_bp
+from admin_routes import admin_bp
+from layout_editor import layout_bp
+
+# ==========================
+# Create Flask App
+# ==========================
 
 app = Flask(__name__)
 
-# =========================
-# SECRET KEY
-# =========================
-app.secret_key = os.environ.get("SECRET_KEY", "event_management_secret_key")
+app.secret_key = "event_management_secret_key"
 
-# =========================
-# DATABASE CONFIG
-# =========================
-app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv(
-    "DATABASE_URL",
-    "sqlite:///event.db"
-)
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+# ==========================
+# Database
+# ==========================
 
-db = SQLAlchemy(app)
+os.makedirs(app.instance_path, exist_ok=True)
+db_path = os.path.abspath(os.path.join(app.instance_path, "event.db"))
+app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///" + db_path.replace('\\', '/')
+app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
-# =========================
-# DATABASE MODEL
-# =========================
-class Participant(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    reg_id = db.Column(db.String(20), unique=True)
+# ==========================
+# Upload Folder
+# ==========================
 
-    name = db.Column(db.String(100))
-    mobile = db.Column(db.String(20))
-    email = db.Column(db.String(100))
+app.config["UPLOAD_FOLDER"] = "static/certificate_templates"
 
-    district = db.Column(db.String(100))
-    organization = db.Column(db.String(200))
-    designation = db.Column(db.String(100))
-    category = db.Column(db.String(50))
+os.makedirs("static/certificate_templates", exist_ok=True)
+# Generated Files
+os.makedirs("static/generated_certificates", exist_ok=True)
+os.makedirs("static/generated_qr", exist_ok=True)
+os.makedirs("static/uploads", exist_ok=True)
+os.makedirs("qrcodes", exist_ok=True)
 
-    attendance = db.Column(db.String(20), default="Absent")
+# ==========================
+# Initialize Database
+# ==========================
 
-    reg_date = db.Column(db.DateTime, default=datetime.utcnow)
+db.init_app(app)
 
-# =========================
-# HOME
-# =========================
-@app.route('/')
-def home():
-    return render_template('index.html')
 
-# =========================
-# REGISTER
-# =========================
-@app.route('/register', methods=['GET', 'POST'])
-def register():
+# ==========================
+# Register Blueprints
+# ==========================
 
-    if request.method == 'POST':
+app.register_blueprint(routes_bp)
+app.register_blueprint(admin_bp)
+app.register_blueprint(layout_bp)
 
-        count = Participant.query.count() + 1
-        reg_id = f"EVT2026{count:05d}"
+@app.errorhandler(500)
+def internal_server_error(error):
+    import traceback
 
-        participant = Participant(
-            reg_id=reg_id,
-            name=request.form['name'],
-            mobile=request.form['mobile'],
-            email=request.form['email'],
-            district=request.form['district'],
-            organization=request.form['organization'],
-            designation=request.form['designation'],
-            category=request.form['category']
-        )
+    tb = traceback.format_exc()
+    print("===== INTERNAL SERVER ERROR =====")
+    print(tb)
+    print("=================================")
+    return f"<h1>Internal Server Error</h1><pre>{tb}</pre>", 500
 
-        db.session.add(participant)
-        db.session.commit()
+# ==========================
+# Create Database Tables
+# ==========================
 
-        os.makedirs("qrcodes", exist_ok=True)
+DEFAULT_EVENTS = [
+    {
+        "name": "100% Pass Teachers Felicitation Programme",
+        "slug": "teachers-felicitation-2026",
+        "description": "Certificate-based teacher felicitation event with photo-enabled registration.",
+        "registration_type": "teacher",
+        "collect_photo": True,
+        "requires_photo": True,
+        "collect_email": True,
+        "collect_designation": True,
+        "collect_subject": True,
+        "collect_school_name": True,
+        "collect_school_area": True,
+        "collect_block": True,
+        "marquee_message": "Teacher felicitation registrations are open now with certificate support.",
+        "payment_enabled": False,
+        "payment_amount": 0,
+        "payment_link": "",
+        "payment_notes": "",
+        "whatsapp_ack_enabled": True,
+        "whatsapp_template": "Your registration for {event_name} is confirmed. Reg ID: {reg_id}.",
+        "qr_sharing_enabled": True,
+        "exam_enabled": False,
+        "is_active": True,
+    },
+    {
+        "name": "School Leadership Workshop",
+        "slug": "school-leadership-workshop",
+        "description": "Workshop registration without mandatory photo upload.",
+        "registration_type": "teacher",
+        "collect_photo": False,
+        "requires_photo": False,
+        "collect_email": True,
+        "collect_designation": True,
+        "collect_subject": False,
+        "collect_school_name": True,
+        "collect_school_area": False,
+        "collect_block": False,
+        "marquee_message": "Leadership workshop registrations are now live. Photo upload is not required.",
+        "payment_enabled": True,
+        "payment_amount": 250,
+        "payment_link": "https://example.com/pay/school-leadership-workshop",
+        "payment_notes": "Workshop participation fee can be collected online after registration.",
+        "whatsapp_ack_enabled": True,
+        "whatsapp_template": "Thank you for registering for {event_name}. Your registration ID is {reg_id}.",
+        "qr_sharing_enabled": True,
+        "exam_enabled": True,
+        "is_active": True,
+    },
+    {
+        "name": "Youth Innovation Camp",
+        "slug": "youth-innovation-camp",
+        "description": "Dummy demo event with a lighter data collection module for quick sign-ups.",
+        "registration_type": "public",
+        "collect_photo": False,
+        "requires_photo": False,
+        "collect_email": True,
+        "collect_designation": False,
+        "collect_subject": False,
+        "collect_school_name": False,
+        "collect_school_area": False,
+        "collect_block": False,
+        "marquee_message": "New: Youth Innovation Camp is now available on the public portal.",
+        "payment_enabled": False,
+        "payment_amount": 0,
+        "payment_link": "",
+        "payment_notes": "",
+        "whatsapp_ack_enabled": False,
+        "whatsapp_template": "",
+        "qr_sharing_enabled": False,
+        "exam_enabled": False,
+        "is_active": True,
+    },
+]
 
-        qr_data = f"""
-Registration ID: {reg_id}
-Name: {participant.name}
-Mobile: {participant.mobile}
-"""
 
-        qr = qrcode.make(qr_data)
-        qr.save(f"qrcodes/{reg_id}.png")
+DEFAULT_FIELD_OPTIONS = {
+    "salutation": "\n".join(["Mr.", "Mrs.", "Ms.", "Dr."]),
+    "designation": "\n".join([
+        "Headmaster",
+        "Headmistress",
+        "PG Assistant",
+        "BT Assistant",
+        "Secondary Grade Teacher",
+        "Vocational Instructor",
+        "Physical Education Teacher",
+        "Special Teacher",
+        "Computer Instructor",
+        "Other",
+    ]),
+    "subject": "\n".join([
+        "Tamil",
+        "English",
+        "Mathematics",
+        "Science",
+        "Physics",
+        "Chemistry",
+        "Biology",
+        "History",
+        "Geography",
+        "Economics",
+        "Commerce",
+        "Computer Science",
+        "Physical Education",
+        "Other",
+    ]),
+    "block": "\n".join([
+        "Perambalur",
+        "Alathur",
+        "Veppanthattai",
+        "Veppur",
+        "Kunnam",
+    ]),
+    "gender": "\n".join([
+        "Male",
+        "Female",
+        "Other",
+    ]),
+}
 
-        return render_template('success.html', participant=participant)
 
-    return render_template('register.html')
+DEFAULT_EVENT_FIELDS = {
+    "teacher": [
+        {"field_name": "salutation", "field_label": "Salutation", "field_type": "select", "data_type": "string", "options_text": DEFAULT_FIELD_OPTIONS["salutation"], "is_required": True, "sort_order": 10},
+        {"field_name": "teacher_name", "field_label": "Teacher Name", "field_type": "text", "data_type": "string", "placeholder": "Enter teacher name", "is_required": True, "sort_order": 20},
+        {"field_name": "mobile", "field_label": "Mobile Number", "field_type": "tel", "data_type": "string", "placeholder": "9876543210", "is_required": True, "sort_order": 30},
+        {"field_name": "email", "field_label": "Email Address", "field_type": "email", "data_type": "string", "placeholder": "example@gmail.com", "is_required": True, "sort_order": 40},
+        {"field_name": "designation", "field_label": "Designation", "field_type": "select", "data_type": "string", "options_text": DEFAULT_FIELD_OPTIONS["designation"], "is_required": True, "sort_order": 50},
+        {"field_name": "subject", "field_label": "Subject", "field_type": "select", "data_type": "string", "options_text": DEFAULT_FIELD_OPTIONS["subject"], "is_required": True, "sort_order": 60},
+        {"field_name": "school_name", "field_label": "School Name", "field_type": "text", "data_type": "string", "placeholder": "Enter school name", "is_required": True, "sort_order": 70},
+        {"field_name": "school_area", "field_label": "School Area", "field_type": "text", "data_type": "string", "placeholder": "Village / Town / City", "is_required": True, "sort_order": 80},
+        {"field_name": "block", "field_label": "Block", "field_type": "select", "data_type": "string", "options_text": DEFAULT_FIELD_OPTIONS["block"], "is_required": True, "sort_order": 90},
+    ],
+    "student": [
+        {"field_name": "teacher_name", "field_label": "Student Name", "field_type": "text", "data_type": "string", "placeholder": "Enter student name", "is_required": True, "sort_order": 10},
+        {"field_name": "mobile", "field_label": "Mobile Number", "field_type": "tel", "data_type": "string", "placeholder": "9876543210", "is_required": True, "sort_order": 20},
+        {"field_name": "email", "field_label": "Email Address", "field_type": "email", "data_type": "string", "placeholder": "example@gmail.com", "is_required": False, "sort_order": 30},
+        {"field_name": "school_name", "field_label": "School / College Name", "field_type": "text", "data_type": "string", "placeholder": "Enter school or college name", "is_required": True, "sort_order": 40},
+        {"field_name": "custom_grade", "field_label": "Class / Grade", "field_type": "text", "data_type": "string", "placeholder": "Enter class or grade", "is_required": True, "sort_order": 50},
+        {"field_name": "custom_gender", "field_label": "Gender", "field_type": "select", "data_type": "string", "options_text": DEFAULT_FIELD_OPTIONS["gender"], "is_required": False, "sort_order": 60},
+    ],
+    "public": [
+        {"field_name": "teacher_name", "field_label": "Participant Name", "field_type": "text", "data_type": "string", "placeholder": "Enter participant name", "is_required": True, "sort_order": 10},
+        {"field_name": "mobile", "field_label": "Mobile Number", "field_type": "tel", "data_type": "string", "placeholder": "9876543210", "is_required": True, "sort_order": 20},
+        {"field_name": "email", "field_label": "Email Address", "field_type": "email", "data_type": "string", "placeholder": "example@gmail.com", "is_required": False, "sort_order": 30},
+        {"field_name": "custom_place", "field_label": "Place", "field_type": "text", "data_type": "string", "placeholder": "Enter your place", "is_required": False, "sort_order": 40},
+    ],
+}
 
-# =========================
-# LOGIN
-# =========================
-@app.route('/login', methods=['GET', 'POST'])
-def login():
 
-    if request.method == 'POST':
-
-        username = request.form['username']
-        password = request.form['password']
-
-        if username == "admin" and password == "admin123":
-            session['admin'] = True
-            return redirect('/admin')
-
-        return "Invalid Username or Password"
-
-    return render_template('login.html')
-
-# =========================
-# LOGOUT
-# =========================
-@app.route('/logout')
-def logout():
-    session.clear()
-    return redirect('/')
-
-# =========================
-# ADMIN DASHBOARD
-# =========================
-@app.route('/admin')
-def admin():
-
-    if not session.get('admin'):
-        return redirect('/login')
-
-    search = request.args.get('search', '')
-
-    page = request.args.get('page', 1, type=int)
-
-    query = Participant.query
-
-    if search:
-        query = query.filter(
-            (Participant.name.contains(search)) |
-            (Participant.mobile.contains(search)) |
-            (Participant.reg_id.contains(search))
-        )
-
-    participants = query.order_by(
-        Participant.id.desc()
-    ).paginate(page=page, per_page=50, error_out=False)
-
-    total = Participant.query.count()
-
-    teachers = Participant.query.filter_by(category="Teacher").count()
-    students = Participant.query.filter_by(category="Student").count()
-    volunteers = Participant.query.filter_by(category="Volunteer").count()
-    guests = Participant.query.filter_by(category="Guest").count()
-
-    return render_template(
-        'admin.html',
-        participants=participants,
-        search=search,
-        total=total,
-        teachers=teachers,
-        students=students,
-        volunteers=volunteers,
-        guests=guests
+def default_fields_for_registration_type(registration_type):
+    return DEFAULT_EVENT_FIELDS.get(
+        registration_type or "teacher",
+        DEFAULT_EVENT_FIELDS["teacher"]
     )
 
-# =========================
-# ATTENDANCE
-# =========================
-@app.route('/attendance/<int:id>')
-def attendance(id):
 
-    if not session.get('admin'):
-        return redirect('/login')
+def seed_default_events():
+    existing_events = {
+        event.slug: event
+        for event in Event.query.all()
+    }
 
-    participant = Participant.query.get_or_404(id)
-    participant.attendance = "Present"
+    changed = False
 
-    db.session.commit()
+    for item in DEFAULT_EVENTS:
+        existing = existing_events.get(item["slug"])
 
-    return redirect('/admin')
+        if not existing:
+            db.session.add(Event(**item))
+            changed = True
+            continue
 
-# =========================
-# QR CODE VIEW
-# =========================
-@app.route('/qrcode/<reg_id>')
-def qrcode_view(reg_id):
-    return send_file(f"qrcodes/{reg_id}.png")
+        for key, value in item.items():
+            if getattr(existing, key, None) is None:
+                setattr(existing, key, value)
+                changed = True
 
-# =========================
-# CERTIFICATE
-# =========================
-@app.route('/certificate/<int:id>')
-def certificate(id):
+    if changed:
+        db.session.commit()
 
-    if not session.get('admin'):
-        return redirect('/login')
 
-    participant = Participant.query.get_or_404(id)
+def seed_default_event_fields():
+    changed = False
 
-    os.makedirs("certificates", exist_ok=True)
+    for event in Event.query.all():
+        if event.registration_fields:
+            continue
 
-    pdf_path = f"certificates/{participant.reg_id}.pdf"
+        for item in default_fields_for_registration_type(event.registration_type):
+            db.session.add(
+                EventField(
+                    event_id=event.id,
+                    field_name=item["field_name"],
+                    field_label=item["field_label"],
+                    field_type=item.get("field_type", "text"),
+                    data_type=item.get("data_type", "string"),
+                    placeholder=item.get("placeholder", ""),
+                    options_text=item.get("options_text", ""),
+                    help_text=item.get("help_text", ""),
+                    is_required=bool(item.get("is_required", False)),
+                    is_active=True,
+                    sort_order=item.get("sort_order", 0),
+                )
+            )
+            changed = True
 
-    c = canvas.Canvas(pdf_path)
+    if changed:
+        db.session.commit()
 
-    c.setFont("Helvetica-Bold", 24)
-    c.drawString(180, 750, "CERTIFICATE")
 
-    c.setFont("Helvetica", 14)
-    c.drawString(100, 680, f"This certifies that {participant.name}")
-    c.drawString(100, 650, "has successfully participated in the event.")
+def ensure_event_schema():
+    db_path = os.path.join(app.instance_path, "event.db")
 
-    c.save()
+    if not os.path.exists(db_path):
+        return
 
-    return send_file(pdf_path, as_attachment=True)
+    conn = sqlite3.connect(db_path)
+    cursor = conn.cursor()
+    cursor.execute("PRAGMA table_info(events)")
+    existing_columns = {row[1] for row in cursor.fetchall()}
 
-# =========================
-# EXPORT EXCEL
-# =========================
-@app.route('/export')
-def export():
+    required_columns = {
+        "registration_type": "registration_type VARCHAR(30) DEFAULT 'teacher'",
+        "collect_photo": "collect_photo BOOLEAN DEFAULT 1",
+        "collect_email": "collect_email BOOLEAN DEFAULT 1",
+        "collect_designation": "collect_designation BOOLEAN DEFAULT 1",
+        "collect_subject": "collect_subject BOOLEAN DEFAULT 1",
+        "collect_school_name": "collect_school_name BOOLEAN DEFAULT 1",
+        "collect_school_area": "collect_school_area BOOLEAN DEFAULT 1",
+        "collect_block": "collect_block BOOLEAN DEFAULT 1",
+        "marquee_message": "marquee_message VARCHAR(255)",
+        "payment_enabled": "payment_enabled BOOLEAN DEFAULT 0",
+        "payment_amount": "payment_amount FLOAT DEFAULT 0",
+        "payment_link": "payment_link VARCHAR(500)",
+        "payment_notes": "payment_notes TEXT",
+        "whatsapp_ack_enabled": "whatsapp_ack_enabled BOOLEAN DEFAULT 0",
+        "whatsapp_template": "whatsapp_template TEXT",
+        "qr_sharing_enabled": "qr_sharing_enabled BOOLEAN DEFAULT 1",
+        "exam_enabled": "exam_enabled BOOLEAN DEFAULT 0",
+    }
 
-    if not session.get('admin'):
-        return redirect('/login')
+    for name, ddl in required_columns.items():
+        if name not in existing_columns:
+            cursor.execute(f"ALTER TABLE events ADD COLUMN {ddl}")
 
-    participants = Participant.query.all()
+    conn.commit()
+    conn.close()
 
-    data = [{
-        "Reg ID": p.reg_id,
-        "Name": p.name,
-        "Mobile": p.mobile,
-        "Email": p.email,
-        "District": p.district,
-        "Organization": p.organization,
-        "Designation": p.designation,
-        "Category": p.category,
-        "Attendance": p.attendance
-    } for p in participants]
 
-    df = pd.DataFrame(data)
+def ensure_exam_schema():
+    db_path = os.path.join(app.instance_path, "event.db")
 
-    file_name = "participants.xlsx"
-    df.to_excel(file_name, index=False)
+    if not os.path.exists(db_path):
+        return
 
-    return send_file(file_name, as_attachment=True)
+    conn = sqlite3.connect(db_path)
+    cursor = conn.cursor()
 
-# =========================
-# START APP (LOCAL ONLY)
-# =========================
+    table_columns = {}
+    for table_name in ("online_exams", "exam_questions", "exam_attempts"):
+        cursor.execute(f"PRAGMA table_info({table_name})")
+        table_columns[table_name] = {row[1] for row in cursor.fetchall()}
+
+    online_exam_columns = {
+        "start_at": "start_at DATETIME",
+        "end_at": "end_at DATETIME",
+        "negative_marks": "negative_marks FLOAT DEFAULT 0",
+        "tab_switch_limit": "tab_switch_limit INTEGER DEFAULT 3",
+        "auto_submit_on_violation": "auto_submit_on_violation BOOLEAN DEFAULT 1",
+    }
+
+    for name, ddl in online_exam_columns.items():
+        if name not in table_columns.get("online_exams", set()):
+            cursor.execute(f"ALTER TABLE online_exams ADD COLUMN {ddl}")
+
+    question_columns = {
+        "question_type": "question_type VARCHAR(20) DEFAULT 'mcq'",
+        "model_answer": "model_answer TEXT",
+    }
+
+    for name, ddl in question_columns.items():
+        if name not in table_columns.get("exam_questions", set()):
+            cursor.execute(f"ALTER TABLE exam_questions ADD COLUMN {ddl}")
+
+    attempt_columns = {
+        "started_at": "started_at DATETIME",
+        "evaluation_status": "evaluation_status VARCHAR(30) DEFAULT 'auto_scored'",
+        "violation_count": "violation_count INTEGER DEFAULT 0",
+    }
+
+    for name, ddl in attempt_columns.items():
+        if name not in table_columns.get("exam_attempts", set()):
+            cursor.execute(f"ALTER TABLE exam_attempts ADD COLUMN {ddl}")
+
+    cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='exam_answers'")
+    if not cursor.fetchone():
+        cursor.execute(
+            """
+            CREATE TABLE exam_answers (
+                id INTEGER NOT NULL PRIMARY KEY,
+                attempt_id INTEGER NOT NULL,
+                question_id INTEGER NOT NULL,
+                selected_option VARCHAR(1),
+                text_answer TEXT,
+                is_correct BOOLEAN,
+                auto_score FLOAT DEFAULT 0 NOT NULL,
+                manual_score FLOAT,
+                created_at DATETIME,
+                FOREIGN KEY(attempt_id) REFERENCES exam_attempts (id),
+                FOREIGN KEY(question_id) REFERENCES exam_questions (id)
+            )
+            """
+        )
+        cursor.execute(
+            "CREATE INDEX IF NOT EXISTS idx_exam_answers_attempt_id "
+            "ON exam_answers (attempt_id)"
+        )
+        cursor.execute(
+            "CREATE INDEX IF NOT EXISTS idx_exam_answers_question_id "
+            "ON exam_answers (question_id)"
+        )
+
+    conn.commit()
+    conn.close()
+
+
+def ensure_participant_schema():
+    db_path = os.path.join(app.instance_path, "event.db")
+
+    if not os.path.exists(db_path):
+        return
+
+    conn = sqlite3.connect(db_path)
+    cursor = conn.cursor()
+    cursor.execute("PRAGMA table_info(participants)")
+    existing_columns = {row[1] for row in cursor.fetchall()}
+
+    cursor.execute(
+        "SELECT sql FROM sqlite_master WHERE type='table' AND name='participants'"
+    )
+    row = cursor.fetchone()
+    table_sql = row[0] if row and row[0] else ""
+
+    needs_rebuild = (
+        "event_id" not in existing_columns
+        or "UNIQUE (mobile)" in table_sql
+        or "photo_with_mp" in existing_columns
+        or "ai_status" in existing_columns
+        or "ai_photo" in existing_columns
+        or "ai_generated" in existing_columns
+    )
+
+    if needs_rebuild:
+        cursor.execute(
+            "SELECT id FROM events WHERE is_active = 1 ORDER BY id LIMIT 1"
+        )
+        event_row = cursor.fetchone()
+        if not event_row:
+            cursor.execute(
+                "SELECT id FROM events ORDER BY id LIMIT 1"
+            )
+            event_row = cursor.fetchone()
+
+        default_event_id = event_row[0] if event_row else 1
+        event_expr = (
+            f"COALESCE(event_id, {default_event_id})"
+            if "event_id" in existing_columns
+            else str(default_event_id)
+        )
+        extra_data_expr = (
+            "extra_data"
+            if "extra_data" in existing_columns
+            else "NULL"
+        )
+
+        cursor.execute("PRAGMA foreign_keys = OFF")
+        cursor.execute(
+            """
+            CREATE TABLE participants_new (
+                id INTEGER NOT NULL PRIMARY KEY,
+                reg_id VARCHAR(30) NOT NULL UNIQUE,
+                event_id INTEGER NOT NULL,
+                salutation VARCHAR(20),
+                teacher_name VARCHAR(150) NOT NULL,
+                mobile VARCHAR(10) NOT NULL,
+                email VARCHAR(120) NOT NULL,
+                designation VARCHAR(100) NOT NULL,
+                subject VARCHAR(100) NOT NULL,
+                school_name VARCHAR(200) NOT NULL,
+                school_area VARCHAR(150) NOT NULL,
+                block VARCHAR(100) NOT NULL,
+                photo VARCHAR(250),
+                extra_data TEXT,
+                certificate_pdf VARCHAR(250),
+                qr_code VARCHAR(250),
+                download_count INTEGER DEFAULT 0,
+                last_download DATETIME,
+                certificate_generated BOOLEAN DEFAULT 0,
+                created_at DATETIME,
+                FOREIGN KEY(event_id) REFERENCES events (id)
+            )
+            """
+        )
+        cursor.execute(
+            f"""
+            INSERT INTO participants_new (
+                id,
+                reg_id,
+                event_id,
+                salutation,
+                teacher_name,
+                mobile,
+                email,
+                designation,
+                subject,
+                school_name,
+                school_area,
+                block,
+                photo,
+                extra_data,
+                certificate_pdf,
+                qr_code,
+                download_count,
+                last_download,
+                certificate_generated,
+                created_at
+            )
+            SELECT
+                id,
+                reg_id,
+                {event_expr},
+                salutation,
+                teacher_name,
+                mobile,
+                email,
+                designation,
+                subject,
+                school_name,
+                school_area,
+                block,
+                photo,
+                {extra_data_expr},
+                certificate_pdf,
+                qr_code,
+                COALESCE(download_count, 0),
+                last_download,
+                COALESCE(certificate_generated, 0),
+                created_at
+            FROM participants
+            """
+        )
+        cursor.execute("DROP TABLE participants")
+        cursor.execute("ALTER TABLE participants_new RENAME TO participants")
+        cursor.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_participants_reg_id_unique "
+            "ON participants (reg_id)"
+        )
+        cursor.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_participants_event_mobile_unique "
+            "ON participants (event_id, mobile)"
+        )
+        cursor.execute(
+            "CREATE INDEX IF NOT EXISTS idx_participants_event_id "
+            "ON participants (event_id)"
+        )
+        cursor.execute("PRAGMA foreign_keys = ON")
+    else:
+        required_columns = {
+            "event_id": "event_id INTEGER",
+            "extra_data": "extra_data TEXT",
+            "certificate_pdf": "certificate_pdf VARCHAR(250)",
+            "qr_code": "qr_code VARCHAR(250)",
+            "download_count": "download_count INTEGER DEFAULT 0",
+            "last_download": "last_download DATETIME",
+            "certificate_generated": "certificate_generated BOOLEAN DEFAULT 0",
+        }
+
+        for name, ddl in required_columns.items():
+            if name not in existing_columns:
+                cursor.execute(f"ALTER TABLE participants ADD COLUMN {ddl}")
+
+        cursor.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_participants_reg_id_unique "
+            "ON participants (reg_id)"
+        )
+        cursor.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_participants_event_mobile_unique "
+            "ON participants (event_id, mobile)"
+        )
+        cursor.execute(
+            "CREATE INDEX IF NOT EXISTS idx_participants_event_id "
+            "ON participants (event_id)"
+        )
+
+    conn.commit()
+    conn.close()
+
+
+def init_database():
+    try:
+        with app.app_context():
+            db.create_all()
+            ensure_event_schema()
+            ensure_exam_schema()
+            seed_default_events()
+            ensure_participant_schema()
+            seed_default_event_fields()
+    except Exception as e:
+        print("WARNING: database initialization failed:", e)
+
+# Attempt to initialize the database, but do not stop app import on failure.
+init_database()
+from models import Block
+
+with app.app_context():
+
+    if Block.query.count() == 0:
+
+        blocks = [
+
+            Block(
+                block_name="Perambalur",
+                certificate_template="winner.png"
+            ),
+
+            Block(
+                block_name="Veppanthattai",
+                certificate_template="winner.png"
+            ),
+
+            Block(
+                block_name="Alathur",
+                certificate_template="winner.png"
+            ),
+
+            Block(
+                block_name="Kunnam",
+                certificate_template="winner.png"
+            ),
+
+            Block(
+                block_name="Veppur",
+                certificate_template="winner.png"
+            )
+
+        ]
+
+        db.session.add_all(blocks)
+
+        db.session.commit()
+# ==========================
+# Run Application
+# ==========================
+
 if __name__ == "__main__":
-    with app.app_context():
-        db.create_all()
-
-    app.run(host="0.0.0.0", port=5000)
+    init_database()
+    app.run(debug=True)

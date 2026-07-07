@@ -1,0 +1,57 @@
+{% extends "admin/admin_base.html" %}
+
+{% block title %}Online Exams{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header bg-primary text-white">
+        Online Exam Portal
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-striped mb-0">
+                <thead>
+                    <tr>
+                        <th>Event</th>
+                        <th>Exam Status</th>
+                        <th>Subjects</th>
+                        <th>Exams</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for event in events %}
+                    <tr>
+                        <td>
+                            <strong>{{ event.name }}</strong>
+                            <div><code>{{ event.slug }}</code></div>
+                        </td>
+                        <td>
+                            {% if event.exam_enabled %}
+                            <span class="badge bg-success">Enabled</span>
+                            {% else %}
+                            <span class="badge bg-secondary">Disabled</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ event.exam_subjects|length }}</td>
+                        <td>{{ event.online_exams|length }}</td>
+                        <td>
+                            <a href="{{ url_for('admin.edit_event', id=event.id) }}" class="btn btn-sm btn-outline-dark">
+                                Event Settings
+                            </a>
+                            <a href="{{ url_for('admin.manage_event_exams', event_id=event.id) }}" class="btn btn-sm btn-outline-primary">
+                                Manage Exams
+                            </a>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="5" class="text-center py-4 text-muted">No events available.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

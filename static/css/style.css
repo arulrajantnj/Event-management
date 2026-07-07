@@ -995,3 +995,429 @@ transform:translateY(-8px);
 box-shadow:0 10px 30px rgba(0,0,0,.25);
 
 }
+/* =========================================================
+   AI COMPOSER PROFESSIONAL
+   PART 3
+=========================================================*/
+
+/* ---------- Stage ---------- */
+
+#stage-container{
+
+    position:relative;
+
+    overflow:hidden;
+
+    border-radius:15px;
+
+    background:#ffffff;
+
+}
+
+/* ---------- Grid ---------- */
+
+#stage-container::before{
+
+    content:"";
+
+    position:absolute;
+
+    inset:0;
+
+    background-image:
+
+        linear-gradient(rgba(255,255,255,.25) 1px, transparent 1px),
+
+        linear-gradient(90deg, rgba(255,255,255,.25) 1px, transparent 1px);
+
+    background-size:40px 40px;
+
+    pointer-events:none;
+
+    z-index:1;
+
+}
+
+/* ---------- Stage ---------- */
+
+#stage{
+
+    width:100%;
+
+    display:block;
+
+    position:relative;
+
+    z-index:0;
+
+}
+
+/* ========================================================= */
+
+.draggable{
+
+    position:absolute;
+
+    cursor:move;
+
+    user-select:none;
+
+    touch-action:none;
+
+    transition:.20s;
+
+}
+
+/* Hover */
+
+.draggable:hover{
+
+    filter:drop-shadow(0 0 12px #2196f3);
+
+}
+
+/* Selected */
+
+.draggable.selected{
+
+    outline:3px dashed #0d6efd;
+
+    outline-offset:3px;
+
+}
+
+/* ========================================================= */
+/* Resize Handle */
+
+.resize-handle{
+
+    width:14px;
+
+    height:14px;
+
+    border-radius:50%;
+
+    background:#0d6efd;
+
+    border:2px solid white;
+
+    position:absolute;
+
+    right:-7px;
+
+    bottom:-7px;
+
+}
+
+/* ========================================================= */
+
+.layer-label{
+
+    position:absolute;
+
+    top:-26px;
+
+    left:0;
+
+    background:#0d6efd;
+
+    color:white;
+
+    padding:3px 10px;
+
+    border-radius:6px;
+
+    font-size:12px;
+
+    font-weight:bold;
+
+}
+
+/* ========================================================= */
+
+.property-panel{
+
+    max-height:88vh;
+
+    overflow-y:auto;
+
+}
+
+/* ========================================================= */
+
+.coordinate{
+
+    margin-bottom:12px;
+
+}
+
+/* ========================================================= */
+
+.toolbox{
+
+    position:sticky;
+
+    top:10px;
+
+    z-index:500;
+
+}
+
+/* ========================================================= */
+
+.sidebar{
+
+    position:sticky;
+
+    top:95px;
+
+}
+
+/* ========================================================= */
+
+.shadow{
+
+    filter:drop-shadow(0 6px 12px rgba(0,0,0,.35));
+
+}
+
+/* ========================================================= */
+
+#teacher{
+
+    z-index:20;
+
+}
+
+#mp{
+
+    z-index:15;
+
+}
+
+#certificate{
+
+    z-index:30;
+
+}
+
+#logo{
+
+    z-index:40;
+
+}
+
+/* ========================================================= */
+
+.badge-layer{
+
+    position:absolute;
+
+    top:5px;
+
+    left:5px;
+
+    background:#198754;
+
+    color:white;
+
+    font-size:11px;
+
+    padding:3px 8px;
+
+    border-radius:10px;
+
+}
+
+/* ========================================================= */
+
+.object-info{
+
+    margin-top:10px;
+
+    font-size:14px;
+
+    color:#555;
+
+}
+
+/* ========================================================= */
+
+.footer{
+
+    text-align:center;
+
+    margin-top:25px;
+
+    color:#666;
+
+}
+
+/* ========================================================= */
+
+@media(max-width:992px){
+
+.sidebar{
+
+    margin-top:20px;
+
+    position:relative;
+
+    top:0;
+
+}
+
+.toolbox{
+
+    position:relative;
+
+}
+
+}
+
+.ticker-shell{
+    display:flex;
+    align-items:center;
+    gap:0;
+    overflow:hidden;
+    border-radius:24px;
+    background:#0f172a;
+    box-shadow:0 18px 40px rgba(15,23,42,.18);
+}
+
+.ticker-label{
+    flex:0 0 auto;
+    padding:18px 24px;
+    background:linear-gradient(135deg,#ef4444,#f97316);
+    color:#fff;
+    font-weight:700;
+    text-transform:uppercase;
+    letter-spacing:.08em;
+}
+
+.ticker-track-wrap{
+    overflow:hidden;
+    width:100%;
+    padding:16px 0;
+}
+
+.ticker-track{
+    display:flex;
+    align-items:center;
+    width:max-content;
+    animation:tickerMove 30s linear infinite;
+}
+
+.ticker-item{
+    color:#fff;
+    font-weight:500;
+    white-space:nowrap;
+    margin-right:48px;
+    position:relative;
+}
+
+.ticker-item::after{
+    content:"";
+    position:absolute;
+    top:50%;
+    right:-24px;
+    width:8px;
+    height:8px;
+    border-radius:50%;
+    background:#fbbf24;
+    transform:translateY(-50%);
+}
+
+@keyframes tickerMove{
+    from{
+        transform:translateX(0);
+    }
+    to{
+        transform:translateX(-50%);
+    }
+}
+
+.announcement-card,
+.notice-panel,
+.latest-event-card{
+    border:0;
+}
+
+.highlight-box{
+    height:100%;
+    padding:20px;
+    border-radius:18px;
+    background:linear-gradient(180deg,#f8fbff,#edf4ff);
+    border:1px solid #d9e8ff;
+}
+
+.highlight-box h5{
+    margin-bottom:10px;
+    color:#0f3f7c;
+    font-weight:700;
+}
+
+.section-kicker{
+    display:inline-block;
+    color:#ef4444;
+    font-weight:700;
+    text-transform:uppercase;
+    letter-spacing:.08em;
+    font-size:.85rem;
+}
+
+.section-title-main{
+    font-size:2.2rem;
+    font-weight:800;
+    color:#0f172a;
+}
+
+.latest-event-card{
+    border-radius:24px;
+    overflow:hidden;
+    box-shadow:0 18px 40px rgba(15,23,42,.10);
+}
+
+.latest-event-card .card-body{
+    padding:28px;
+}
+
+.latest-event-card h4{
+    font-size:1.4rem;
+    font-weight:700;
+    color:#0f172a;
+}
+
+.new-badge{
+    display:inline-flex;
+    align-items:center;
+    padding:8px 14px;
+    border-radius:999px;
+    background:#dcfce7;
+    color:#166534;
+    font-size:.82rem;
+    font-weight:700;
+}
+
+.event-meta{
+    color:#475569;
+    font-size:.95rem;
+    font-weight:500;
+}
+
+@media (max-width:768px){
+
+.ticker-shell{
+    flex-direction:column;
+    align-items:stretch;
+}
+
+.ticker-label{
+    text-align:center;
+}
+
+.section-title-main{
+    font-size:1.8rem;
+}
+
+}

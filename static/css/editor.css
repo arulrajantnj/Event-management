@@ -1,0 +1,135 @@
+body {
+    background: #edf2f7;
+    overflow: hidden;
+    font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+}
+
+/* ================= LEFT PANEL ================= */
+
+.list-group-item {
+    cursor: pointer;
+    margin-bottom: 8px;
+    border-radius: 8px;
+    transition: 0.2s;
+}
+
+.list-group-item:hover {
+    background: #007bff;
+    color: white;
+}
+
+/* ================= CANVAS ================= */
+
+#certificateCanvas {
+    width: 1200px;
+    height: 850px;
+    margin: auto;
+    position: relative;
+    border: 2px solid #999;
+    background: #fff;
+    overflow: hidden;
+    box-shadow: 0 10px 30px rgba(0,0,0,.15);
+}
+
+/* Background image */
+
+.certificate-bg {
+    width: 100%;
+    height: 100%;
+    position: absolute;
+    left: 0;
+    top: 0;
+    object-fit: cover;
+    z-index: 0;
+}
+
+/* ================= DRAGGABLE FIELDS ================= */
+
+.draggable-field {
+    position: absolute;
+    cursor: move;
+    padding: 6px 10px;
+    border: 1px dashed #007bff;
+    background: rgba(255,255,255,.75);
+    color: #000;
+    font-size: 28px;
+    font-weight: bold;
+    user-select: none;
+    z-index: 10;
+    transition: 0.1s;
+}
+
+/* hover effect */
+.draggable-field:hover {
+    border: 2px solid #007bff;
+    background: rgba(255,255,255,.9);
+}
+
+/* selected field */
+.selected {
+    border: 2px solid red !important;
+    box-shadow: 0 0 8px rgba(255,0,0,0.3);
+}
+
+/* ================= PHOTO ================= */
+
+.photo-box {
+    width: 140px;
+    height: 180px;
+    background: #e9ecef;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    z-index: 10;
+}
+
+/* oval */
+.oval {
+    border-radius: 50% / 40%;
+}
+
+/* circle */
+.circle {
+    border-radius: 50%;
+}
+
+/* rounded */
+.rounded-photo {
+    border-radius: 20px;
+}
+
+/* ================= QR ================= */
+
+.qr-box {
+    width: 120px;
+    height: 120px;
+    background: #f8f9fa;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    z-index: 10;
+}
+
+/* ================= PROPERTY PANEL ================= */
+
+.form-control,
+.form-select {
+    margin-bottom: 12px;
+}
+
+/* ================= SAVE BUTTON ================= */
+
+#saveLayout {
+    font-weight: bold;
+}
+
+/* ================= GRID (TOGGLE READY) ================= */
+
+.grid-enabled {
+    background-image:
+        linear-gradient(#eeeeee 1px, transparent 1px),
+        linear-gradient(90deg, #eeeeee 1px, transparent 1px);
+    background-size: 25px 25px;
+}

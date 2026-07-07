@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+
+{% block title %}Hall Ticket{% endblock %}
+
+{% block content %}
+<section class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <div class="card shadow-lg border-0 rounded-4">
+                <div class="card-header bg-primary text-white py-3 d-flex justify-content-between align-items-center">
+                    <h3 class="mb-0">Exam Hall Ticket</h3>
+                    <button class="btn btn-light btn-sm" onclick="window.print()">Print</button>
+                </div>
+                <div class="card-body p-4">
+                    <div class="row g-4">
+                        <div class="col-md-8">
+                            <h4>{{ exam.exam_title }}</h4>
+                            <p class="mb-1"><strong>Subject:</strong> {{ exam.subject.subject_name if exam.subject else "-" }}</p>
+                            <p class="mb-1"><strong>Event:</strong> {{ participant.event.name if participant.event else "-" }}</p>
+                            <p class="mb-1"><strong>Participant:</strong> {{ participant.teacher_name }}</p>
+                            <p class="mb-1"><strong>Registration ID:</strong> {{ participant.reg_id }}</p>
+                            <p class="mb-1"><strong>Mobile:</strong> {{ participant.mobile }}</p>
+                            {% if exam.start_at %}<p class="mb-1"><strong>Start Time:</strong> {{ exam.start_at.strftime('%d-%m-%Y %H:%M') }}</p>{% endif %}
+                            {% if exam.end_at %}<p class="mb-1"><strong>End Time:</strong> {{ exam.end_at.strftime('%d-%m-%Y %H:%M') }}</p>{% endif %}
+                            <p class="mb-1"><strong>Duration:</strong> {{ exam.duration_minutes }} minutes</p>
+                            <p class="mb-0"><strong>Attempts Allowed:</strong> {{ exam.max_attempts }}</p>
+                        </div>
+                        <div class="col-md-4 text-center">
+                            {% if participant.photo %}
+                            <img src="{{ url_for('static', filename='uploads/' + participant.photo) }}" class="img-fluid rounded-4 border" style="max-height:220px;">
+                            {% else %}
+                            <div class="border rounded-4 bg-light p-5 text-muted">No Photo</div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <hr>
+                    <div>
+                        <h5>Important Instructions</h5>
+                        <ul>
+                            <li>Login a few minutes before the exam start time.</li>
+                            <li>Do not switch tabs or open additional windows during the exam.</li>
+                            <li>The exam will auto-submit when time expires.</li>
+                            <li>Descriptive questions may require manual evaluation.</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock %}

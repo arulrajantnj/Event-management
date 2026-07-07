@@ -1,0 +1,234 @@
+{% extends "admin/admin_base.html" %}
+
+{% block title %}Manage Exam{% endblock %}
+
+{% block content %}
+<div class="row g-4">
+    <div class="col-lg-5">
+        <div class="card mb-4">
+            <div class="card-header bg-success text-white">Edit Exam</div>
+            <div class="card-body">
+                <form method="POST">
+                    <div class="mb-3">
+                        <label class="form-label">Subject</label>
+                        <select name="subject_id" class="form-select" required>
+                            {% for subject in subjects %}
+                            <option value="{{ subject.id }}" {% if exam.subject_id == subject.id %}selected{% endif %}>{{ subject.subject_name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Exam Title</label>
+                        <input type="text" name="exam_title" class="form-control" value="{{ exam.exam_title }}" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Exam Code</label>
+                        <input type="text" name="exam_code" class="form-control" value="{{ exam.exam_code }}" required>
+                    </div>
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Start Date & Time</label>
+                            <input type="datetime-local" name="start_at" class="form-control" value="{{ exam.start_at.strftime('%Y-%m-%dT%H:%M') if exam.start_at else '' }}">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">End Date & Time</label>
+                            <input type="datetime-local" name="end_at" class="form-control" value="{{ exam.end_at.strftime('%Y-%m-%dT%H:%M') if exam.end_at else '' }}">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Duration (Minutes)</label>
+                            <input type="number" name="duration_minutes" class="form-control" value="{{ exam.duration_minutes }}" min="1">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Marks Per Question</label>
+                            <input type="number" step="0.5" name="marks_per_question" class="form-control" value="{{ exam.marks_per_question }}">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Negative Marks</label>
+                            <input type="number" step="0.5" name="negative_marks" class="form-control" value="{{ exam.negative_marks }}">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Pass Mark</label>
+                            <input type="number" step="0.5" name="pass_mark" class="form-control" value="{{ exam.pass_mark }}">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Max Attempts</label>
+                            <input type="number" name="max_attempts" class="form-control" value="{{ exam.max_attempts }}" min="1">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Tab Switch Limit</label>
+                            <input type="number" name="tab_switch_limit" class="form-control" value="{{ exam.tab_switch_limit }}" min="0">
+                        </div>
+                    </div>
+                    <div class="mt-3">
+                        <label class="form-label">Instructions</label>
+                        <textarea name="instructions" class="form-control" rows="4">{{ exam.instructions or '' }}</textarea>
+                    </div>
+                    <div class="form-check mt-3">
+                        <input class="form-check-input" type="checkbox" name="auto_submit_on_violation" id="auto_submit_on_violation" {% if exam.auto_submit_on_violation %}checked{% endif %}>
+                        <label class="form-check-label" for="auto_submit_on_violation">Auto submit after rule violation limit</label>
+                    </div>
+                    <div class="form-check mt-2">
+                        <input class="form-check-input" type="checkbox" name="show_result_immediately" id="show_result_immediately" {% if exam.show_result_immediately %}checked{% endif %}>
+                        <label class="form-check-label" for="show_result_immediately">Show result immediately</label>
+                    </div>
+                    <div class="form-check mt-2 mb-3">
+                        <input class="form-check-input" type="checkbox" name="is_active" id="is_active" {% if exam.is_active %}checked{% endif %}>
+                        <label class="form-check-label" for="is_active">Published exam</label>
+                    </div>
+                    <div class="d-flex gap-2 flex-wrap">
+                        <button class="btn btn-success">Save Exam</button>
+                        <a href="{{ url_for('admin.manage_event_exams', event_id=exam.event_id) }}" class="btn btn-outline-secondary">Back</a>
+                        <a href="{{ url_for('admin.exam_results', exam_id=exam.id) }}" class="btn btn-outline-primary">Results</a>
+                        <a href="{{ url_for('admin.exam_rank_list', exam_id=exam.id) }}" class="btn btn-outline-dark">Rank List</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <div class="card mb-4">
+            <div class="card-header bg-info text-white">Import Questions from Excel</div>
+            <div class="card-body">
+                <form method="POST" enctype="multipart/form-data" action="{{ url_for('admin.import_exam_questions', exam_id=exam.id) }}">
+                    <div class="mb-3">
+                        <label class="form-label">Excel File</label>
+                        <input type="file" name="question_file" class="form-control" accept=".xlsx,.xls" required>
+                        <small class="text-muted">Columns: question_type, question_text, option_a, option_b, option_c, option_d, correct_option, model_answer, explanation, marks, sort_order</small>
+                    </div>
+                    <button class="btn btn-info text-white w-100">Import Questions</button>
+                </form>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header bg-primary text-white">Add Question</div>
+            <div class="card-body">
+                <form method="POST" action="{{ url_for('admin.add_exam_question', exam_id=exam.id) }}">
+                    <div class="mb-3">
+                        <label class="form-label">Question Type</label>
+                        <select name="question_type" class="form-select">
+                            {% for value, label in question_type_choices %}
+                            <option value="{{ value }}">{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Question</label>
+                        <textarea name="question_text" class="form-control" rows="3" required></textarea>
+                    </div>
+                    <div class="mb-2"><input type="text" name="option_a" class="form-control" placeholder="Option A"></div>
+                    <div class="mb-2"><input type="text" name="option_b" class="form-control" placeholder="Option B"></div>
+                    <div class="mb-2"><input type="text" name="option_c" class="form-control" placeholder="Option C"></div>
+                    <div class="mb-3"><input type="text" name="option_d" class="form-control" placeholder="Option D"></div>
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Correct Option</label>
+                            <select name="correct_option" class="form-select">
+                                <option value="">Not Applicable</option>
+                                {% for value, label in answer_option_choices %}
+                                <option value="{{ value }}">{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Marks</label>
+                            <input type="number" step="0.5" name="marks" class="form-control" value="{{ exam.marks_per_question }}">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Order</label>
+                            <input type="number" name="sort_order" class="form-control" value="{{ exam.questions|length + 1 }}">
+                        </div>
+                    </div>
+                    <div class="mt-3">
+                        <label class="form-label">Model Answer</label>
+                        <textarea name="model_answer" class="form-control" rows="2"></textarea>
+                    </div>
+                    <div class="mt-3">
+                        <label class="form-label">Explanation</label>
+                        <textarea name="explanation" class="form-control" rows="2"></textarea>
+                    </div>
+                    <div class="form-check mt-3 mb-3">
+                        <input class="form-check-input" type="checkbox" name="is_active" id="question_active" checked>
+                        <label class="form-check-label" for="question_active">Active question</label>
+                    </div>
+                    <button class="btn btn-primary w-100">Add Question</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-7">
+        <div class="card mb-4">
+            <div class="card-header bg-dark text-white">Question Paper</div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-striped mb-0">
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>Type</th>
+                                <th>Question</th>
+                                <th>Correct</th>
+                                <th>Marks</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for question in exam.questions %}
+                            <tr>
+                                <td>{{ loop.index }}</td>
+                                <td><span class="badge text-bg-light">{{ question.question_type|upper }}</span></td>
+                                <td>{{ question.question_text }}</td>
+                                <td>{{ question.correct_option or "-" }}</td>
+                                <td>{{ question.marks }}</td>
+                                <td>
+                                    <a href="{{ url_for('admin.edit_exam_question', question_id=question.id) }}" class="btn btn-sm btn-outline-success">Edit</a>
+                                    <form method="POST" action="{{ url_for('admin.delete_exam_question', question_id=question.id) }}" class="d-inline">
+                                        <button class="btn btn-sm btn-outline-danger" onclick="return confirm('Delete this question?')">Delete</button>
+                                    </form>
+                                </td>
+                            </tr>
+                            {% else %}
+                            <tr>
+                                <td colspan="6" class="text-center py-4 text-muted">No questions added yet.</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header bg-info text-white">Recent Attempts</div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-striped mb-0">
+                        <thead>
+                            <tr>
+                                <th>Participant</th>
+                                <th>Score</th>
+                                <th>Status</th>
+                                <th>Submitted</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for attempt in attempts %}
+                            <tr>
+                                <td>{{ attempt.participant.teacher_name }}<div class="small text-muted">{{ attempt.participant.reg_id }}</div></td>
+                                <td>{{ attempt.score }} / {{ attempt.total_marks }}</td>
+                                <td>{{ attempt.evaluation_status }}</td>
+                                <td>{{ attempt.submitted_at.strftime('%d-%m-%Y %H:%M') if attempt.submitted_at else '-' }}</td>
+                            </tr>
+                            {% else %}
+                            <tr>
+                                <td colspan="4" class="text-center py-4 text-muted">No attempts yet.</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

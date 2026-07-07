@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+
+{% block title %}Exam Result{% endblock %}
+
+{% block content %}
+<section class="container py-5">
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-3 mb-4">
+        <div>
+            <h2 class="mb-1">{{ exam.exam_title }} Result</h2>
+            <p class="text-muted mb-0">{{ participant.teacher_name }} | {{ participant.reg_id }}</p>
+        </div>
+        <a href="{{ url_for('routes.my_exams') }}" class="btn btn-outline-primary">Back to My Exams</a>
+    </div>
+
+    <div class="row g-4 mb-4">
+        <div class="col-md-3"><div class="card shadow-sm border-0 rounded-4"><div class="card-body text-center"><h3>{{ attempt.score }}</h3><div class="text-muted">Score</div></div></div></div>
+        <div class="col-md-3"><div class="card shadow-sm border-0 rounded-4"><div class="card-body text-center"><h3>{{ attempt.total_marks }}</h3><div class="text-muted">Total Marks</div></div></div></div>
+        <div class="col-md-3"><div class="card shadow-sm border-0 rounded-4"><div class="card-body text-center"><h3>{{ attempt.correct_answers }}</h3><div class="text-muted">Correct MCQ</div></div></div></div>
+        <div class="col-md-3"><div class="card shadow-sm border-0 rounded-4"><div class="card-body text-center"><h3>{% if attempt.evaluation_status == 'pending_review' %}Pending{% elif attempt.score >= exam.pass_mark %}Pass{% else %}Fail{% endif %}</h3><div class="text-muted">Status</div></div></div></div>
+    </div>
+
+    {% if exam.show_result_immediately %}
+    <div class="card shadow-sm border-0 rounded-4">
+        <div class="card-header bg-dark text-white">Answer Review</div>
+        <div class="card-body">
+            {% for answer in attempt.answers %}
+            {% set question = answer.question %}
+            <div class="mb-4">
+                <h5>Q{{ loop.index }}. {{ question.question_text }}</h5>
+                {% if question.question_type == "descriptive" %}
+                <div class="small mb-2"><strong>Your Answer:</strong> {{ answer.text_answer or "Not Answered" }}</div>
+                {% if question.model_answer %}
+                <div class="small mb-2"><strong>Model Answer:</strong> {{ question.model_answer }}</div>
+                {% endif %}
+                <div class="small mb-2"><strong>Awarded Marks:</strong> {{ answer.awarded_score }} / {{ question.marks }}</div>
+                {% else %}
+                <div class="small mb-2">
+                    Your Answer: <strong>{{ answer.selected_option or "Not Answered" }}</strong> |
+                    Correct Answer: <strong>{{ question.correct_option }}</strong> |
+                    Awarded Marks: <strong>{{ answer.awarded_score }}</strong>
+                </div>
+                {% endif %}
+                {% if question.explanation %}
+                <div class="alert alert-light border mb-0">{{ question.explanation }}</div>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% else %}
+    <div class="alert alert-info">Result has been recorded. Detailed answer review is not enabled for this exam.</div>
+    {% endif %}
+</section>
+{% endblock %}
