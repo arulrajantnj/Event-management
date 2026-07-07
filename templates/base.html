@@ -3,16 +3,27 @@
 
 <head>
 
-<meta charset="UTF-8">
+    <meta charset="UTF-8">
 
-<meta name="viewport"
-      content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Vandurai Events | AI Event Management System{% endblock %}</title>
 
-<title>
-{% block title %}
-Vandurai Events
-{% endblock %}
-</title>
+    <meta name="description"
+          content="Vandurai Events - AI Event Management System for teacher registration, thanjavur, teacher, centum, certificate, results, award, online events, certificates and AI photo generation.">
+
+    <meta name="keywords"
+          content="Vandurai Events, AI Event Management, Teacher Registration, Certificate Download, thanjavur, teacher, centum, certificate, results, award, online events, certificates,Online Exam, Tamil Nadu">
+
+    <meta name="author"
+          content="Vandurai Events">
+
+    <meta name="viewport"
+          content="width=device-width, initial-scale=1">
+
+    <link rel="canonical" href="{{ request.url_root }}">
+    <meta name="robots" content="index,follow">
+
+    {% block extra_head %}{% endblock %}
+</head>
 
 <!-- Bootstrap -->
 

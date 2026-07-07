@@ -5,7 +5,8 @@ from flask import (
     redirect,
     session,
     send_file,
-    url_for
+    url_for,
+    Response,
 )
 
 from sqlalchemy.exc import IntegrityError
@@ -87,6 +88,50 @@ def home():
         ],
         ticker_messages=ticker_messages
     )
+
+
+@routes.route("/sitemap.xml")
+def sitemap():
+    base_url = request.host_url.rstrip("/")
+    urls = [
+        {"loc": f"{base_url}/", "changefreq": "daily", "priority": "1.0"},
+        {"loc": f"{base_url}/register", "changefreq": "weekly", "priority": "0.8"},
+    ]
+
+    for event in active_events():
+        urls.append({
+            "loc": f"{base_url}/register?event={quote(event.slug, safe='')}",
+            "changefreq": "weekly",
+            "priority": "0.7",
+        })
+
+    xml_lines = [
+        '<?xml version="1.0" encoding="UTF-8"?>',
+        '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
+    ]
+
+    for item in urls:
+        xml_lines.append("  <url>")
+        xml_lines.append(f"    <loc>{item['loc']}</loc>")
+        xml_lines.append(f"    <changefreq>{item['changefreq']}</changefreq>")
+        xml_lines.append(f"    <priority>{item['priority']}</priority>")
+        xml_lines.append("  </url>")
+
+    xml_lines.append("</urlset>")
+    xml_content = "\n".join(xml_lines)
+
+    return Response(xml_content, mimetype="application/xml")
+
+
+@routes.route("/robots.txt")
+def robots():
+    base_url = request.host_url.rstrip("/")
+    content = (
+        "User-agent: *\n"
+        "Allow: /\n"
+        f"Sitemap: {base_url}/sitemap.xml\n"
+    )
+    return Response(content, mimetype="text/plain")
 
 
 def active_events():

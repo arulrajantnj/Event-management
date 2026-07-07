@@ -1,0 +1,14 @@
+User-agent: *
+Allow: /
+
+# Disallow sensitive admin areas
+Disallow: /admin
+Disallow: /login
+Disallow: /static/ai/
+Disallow: /static/certificate_templates/
+
+# Sitemap
+Sitemap: https://www.vanduraievents.in/sitemap.xml
+
+# Crawl delay (optional - adjust as needed)
+Crawl-delay: 1

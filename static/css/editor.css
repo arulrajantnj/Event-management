@@ -1,7 +1,22 @@
-body {
+html, body {
     background: #edf2f7;
     overflow: hidden;
     font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+    height: 100%;
+    margin: 0;
+    padding: 0;
+}
+
+/* Hide scrollbar while keeping functionality */
+html::-webkit-scrollbar,
+body::-webkit-scrollbar {
+    width: 0;
+    height: 0;
+}
+
+html, body {
+    -ms-overflow-style: none;  /* IE and Edge */
+    scrollbar-width: none;     /* Firefox */
 }
 
 /* ================= LEFT PANEL ================= */
@@ -16,6 +31,20 @@ body {
 .list-group-item:hover {
     background: #007bff;
     color: white;
+}
+
+/* Hide scrollbar on left panel */
+.col-md-2 {
+    overflow-y: auto;
+    scrollbar-width: none;  /* Firefox */
+}
+
+.col-md-2::-webkit-scrollbar {
+    width: 0;  /* Chrome, Safari, Edge */
+}
+
+.col-md-2 {
+    -ms-overflow-style: none;  /* IE and Edge */
 }
 
 /* ================= CANVAS ================= */
