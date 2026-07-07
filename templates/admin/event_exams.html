@@ -5,6 +5,39 @@
 {% block content %}
 <div class="row g-4">
     <div class="col-lg-4">
+        {% if request.args.get("import_created") is not none %}
+        <div class="alert alert-success">
+            Exam users imported:
+            {{ request.args.get("import_created", 0) }} created,
+            {{ request.args.get("import_updated", 0) }} updated,
+            {{ request.args.get("import_skipped", 0) }} skipped.
+        </div>
+        {% elif request.args.get("import_error") %}
+        <div class="alert alert-danger">
+            Could not import exam users. Please upload a valid Excel or CSV file.
+        </div>
+        {% endif %}
+
+        <div class="card mb-4">
+            <div class="card-header bg-warning text-dark">
+                Bulk Exam User Upload
+            </div>
+            <div class="card-body">
+                <form method="POST" action="{{ url_for('admin.import_exam_users', event_id=event.id) }}" enctype="multipart/form-data">
+                    <div class="mb-3">
+                        <label class="form-label">Excel / CSV File</label>
+                        <input type="file" name="exam_users_file" class="form-control" accept=".xlsx,.xls,.csv" required>
+                    </div>
+                    <div class="small text-muted mb-3">
+                        Required columns: <code>username</code>, <code>password</code>, <code>name</code>, and <code>unique_id</code>.
+                        The unique ID can be a mobile number, roll number, or admin-issued number.
+                        Optional: <code>email</code>, <code>school_name</code>, <code>designation</code>.
+                    </div>
+                    <button class="btn btn-warning w-100">Upload Exam Users</button>
+                </form>
+            </div>
+        </div>
+
         <div class="card mb-4">
             <div class="card-header bg-primary text-white">
                 Add Subject

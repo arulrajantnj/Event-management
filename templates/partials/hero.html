@@ -15,7 +15,7 @@
                     </h5>
 
                     <h1 class="display-3 fw-bold text-white">
-                        Event Management System
+                        Vandurai Events
                     </h1>
 
                     <h3 class="text-light mt-3">
@@ -59,6 +59,14 @@
                         <p class="text-white-50 mb-2">Active Events</p>
                         <div class="d-flex flex-wrap gap-2">
                             {% for event in events %}
+                            {% if event.registration_type == "no_registration" %}
+                            <a
+                                href="{{ url_for('routes.exam_login') if event.exam_enabled else '#' }}"
+                                class="btn btn-sm btn-outline-light {% if not event.exam_enabled %}disabled{% endif %}">
+                                {{ event.name }}
+                                <span class="ms-1 badge text-bg-info">No Registration</span>
+                            </a>
+                            {% else %}
                             <a
                                 href="{{ url_for('routes.register', event=event.slug) }}"
                                 class="btn btn-sm {% if event.requires_photo %}btn-outline-light{% else %}btn-light{% endif %}">
@@ -67,6 +75,7 @@
                                 <span class="ms-1 badge text-bg-warning text-dark">No Photo</span>
                                 {% endif %}
                             </a>
+                            {% endif %}
                             {% endfor %}
                         </div>
                     </div>

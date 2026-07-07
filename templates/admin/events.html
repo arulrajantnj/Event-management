@@ -144,13 +144,19 @@
                             </td>
                             <td>
                                 <div class="small mb-2">
-                                    <span class="badge text-bg-info">{{ event.registration_type|title }}</span>
+                                    <span class="badge text-bg-info">
+                                        {% if event.registration_type == "no_registration" %}No Registration{% else %}{{ event.registration_type|title }}{% endif %}
+                                    </span>
+                                    {% if event.registration_type != "no_registration" %}
                                     <span class="badge {% if event.collect_photo and event.requires_photo %}bg-primary{% elif event.collect_photo %}bg-warning text-dark{% else %}bg-secondary{% endif %}">
                                         {% if event.collect_photo and event.requires_photo %}Photo Required{% elif event.collect_photo %}Photo Optional{% else %}No Photo{% endif %}
                                     </span>
+                                    {% endif %}
                                 </div>
                                 <div class="small d-flex flex-wrap gap-1">
+                                    {% if event.registration_type != "no_registration" %}
                                     <span class="badge text-bg-light">{{ event.registration_fields|length }} Fields</span>
+                                    {% endif %}
                                     {% if event.payment_enabled %}<span class="badge text-bg-success">Payment</span>{% endif %}
                                     {% if event.whatsapp_ack_enabled %}<span class="badge text-bg-success">WhatsApp</span>{% endif %}
                                     {% if event.qr_sharing_enabled %}<span class="badge text-bg-success">QR Share</span>{% endif %}

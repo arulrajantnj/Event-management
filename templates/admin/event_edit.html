@@ -148,6 +148,11 @@
                 Add Registration Field
             </div>
             <div class="card-body">
+                {% if event.registration_type == "no_registration" %}
+                <div class="alert alert-info mb-0">
+                    Registration is disabled for this event type. Only service options such as online exam are shown publicly.
+                </div>
+                {% else %}
                 <form method="POST" action="{{ url_for('admin.add_event_field', event_id=event.id) }}">
                     <div class="mb-3">
                         <label class="form-label">Use Existing System Field</label>
@@ -223,6 +228,7 @@
                         Add Field
                     </button>
                 </form>
+                {% endif %}
             </div>
         </div>
 
@@ -242,6 +248,13 @@
                             </tr>
                         </thead>
                         <tbody>
+                            {% if event.registration_type == "no_registration" %}
+                            <tr>
+                                <td colspan="4" class="text-center py-4 text-muted">
+                                    No registration fields are used for this event.
+                                </td>
+                            </tr>
+                            {% else %}
                             {% for field in event.registration_fields %}
                             <tr>
                                 <td>
@@ -284,6 +297,7 @@
                                 </td>
                             </tr>
                             {% endfor %}
+                            {% endif %}
                         </tbody>
                     </table>
                 </div>

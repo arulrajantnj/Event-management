@@ -247,6 +247,19 @@ class Participant(db.Model):
     )
 
     # ----------------------------
+    # EXAM LOGIN
+    # ----------------------------
+
+    exam_username = db.Column(
+        db.String(80),
+        unique=True
+    )
+
+    exam_password_hash = db.Column(
+        db.String(255)
+    )
+
+    # ----------------------------
     created_at = db.Column(
         db.DateTime,
         default=datetime.utcnow

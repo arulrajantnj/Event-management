@@ -12,8 +12,11 @@ from models import (
 )
 from datetime import datetime
 from io import BytesIO
+import json
 import pandas as pd
 import re
+import uuid
+from werkzeug.security import generate_password_hash
 
 
 admin_bp = Blueprint("admin", __name__)
@@ -22,6 +25,7 @@ REGISTRATION_TYPE_CHOICES = [
     ("teacher", "Teachers"),
     ("student", "Students"),
     ("public", "Common Public"),
+    ("no_registration", "No Registration Event"),
 ]
 
 FIELD_TYPE_CHOICES = [
@@ -83,6 +87,9 @@ def normalize_field_name(value):
 
 
 def default_fields_for_type(registration_type):
+    if registration_type == "no_registration":
+        return []
+
     if registration_type == "student":
         return [
             {"field_name": "teacher_name", "field_label": "Student Name", "field_type": "text", "data_type": "string", "placeholder": "Enter student name", "is_required": True, "sort_order": 10},
@@ -129,6 +136,10 @@ def seed_event_fields(event):
 
 def event_payload_from_form():
     collect_photo = checkbox_value("collect_photo")
+    registration_type = request.form.get("registration_type", "teacher").strip() or "teacher"
+    if registration_type == "no_registration":
+        collect_photo = False
+
     payment_enabled = checkbox_value("payment_enabled")
     payment_amount_raw = request.form.get("payment_amount", "").strip()
 
@@ -141,7 +152,7 @@ def event_payload_from_form():
         "name": request.form.get("name", "").strip(),
         "slug": request.form.get("slug", "").strip(),
         "description": request.form.get("description", "").strip(),
-        "registration_type": request.form.get("registration_type", "teacher").strip() or "teacher",
+        "registration_type": registration_type,
         "collect_photo": collect_photo,
         "requires_photo": collect_photo and checkbox_value("requires_photo"),
         "collect_email": True,
@@ -296,7 +307,8 @@ def admin():
         query = query.filter(
             (Participant.teacher_name.contains(search)) |
             (Participant.mobile.contains(search)) |
-            (Participant.reg_id.contains(search))
+            (Participant.reg_id.contains(search)) |
+            (Participant.exam_username.contains(search))
         )
 
     participants = query.order_by(
@@ -325,6 +337,167 @@ def admin():
         events=events,
         selected_event_id=selected_event_id
     )
+
+
+@admin_bp.route("/admin/participants/<int:id>/exam-credentials", methods=["POST"])
+def update_exam_credentials(id):
+
+    if "admin" not in session:
+        return redirect(url_for("routes.login"))
+
+    participant = Participant.query.get_or_404(id)
+    username = request.form.get("exam_username", "").strip()
+    password = request.form.get("exam_password", "")
+
+    if username:
+        existing = Participant.query.filter(
+            Participant.exam_username == username,
+            Participant.id != participant.id
+        ).first()
+
+        if existing:
+            return redirect(request.referrer or url_for("admin.admin"))
+
+        participant.exam_username = username
+
+    if password:
+        participant.exam_password_hash = generate_password_hash(password)
+
+    if not username:
+        participant.exam_username = None
+        participant.exam_password_hash = None
+
+    db.session.commit()
+
+    return redirect(request.referrer or url_for("admin.admin"))
+
+
+def unique_exam_reg_id():
+    while True:
+        reg_id = f"EXAM{uuid.uuid4().hex[:10].upper()}"
+        if not Participant.query.filter_by(reg_id=reg_id).first():
+            return reg_id
+
+
+def row_value(row, *names):
+    for name in names:
+        value = row.get(name)
+        if pd.notna(value):
+            if isinstance(value, float) and value.is_integer():
+                value = int(value)
+            value = str(value).strip()
+            if value:
+                return value
+    return ""
+
+
+@admin_bp.route("/admin/events/<int:event_id>/exam-users/import", methods=["POST"])
+def import_exam_users(event_id):
+
+    if "admin" not in session:
+        return redirect(url_for("routes.login"))
+
+    event = Event.query.get_or_404(event_id)
+    upload = request.files.get("exam_users_file")
+
+    if not upload or not upload.filename:
+        return redirect(url_for("admin.manage_event_exams", event_id=event.id, import_error="missing_file"))
+
+    filename = upload.filename.lower()
+
+    try:
+        if filename.endswith(".csv"):
+            frame = pd.read_csv(upload)
+        else:
+            frame = pd.read_excel(upload)
+    except Exception:
+        return redirect(url_for("admin.manage_event_exams", event_id=event.id, import_error="invalid_file"))
+
+    frame.columns = [
+        str(column).strip().lower().replace(" ", "_")
+        for column in frame.columns
+    ]
+
+    created = 0
+    updated = 0
+    skipped = 0
+
+    for _, row in frame.iterrows():
+        username = row_value(row, "username", "user_name", "exam_username", "login_username")
+        password = row_value(row, "password", "exam_password", "login_password")
+        name = row_value(row, "name", "participant_name", "teacher_name", "student_name")
+        unique_id = row_value(
+            row,
+            "unique_id",
+            "admin_number",
+            "admin_id",
+            "id_number",
+            "roll_no",
+            "roll_number",
+            "mobile",
+            "mobile_number",
+            "phone"
+        )
+
+        if not username or not password or not name or not unique_id:
+            skipped += 1
+            continue
+
+        participant = Participant.query.filter_by(
+            exam_username=username
+        ).first()
+
+        if participant and participant.event_id != event.id:
+            skipped += 1
+            continue
+
+        if not participant:
+            participant = Participant.query.filter_by(
+                event_id=event.id,
+                mobile=unique_id
+            ).first()
+
+        if not participant:
+            email = row_value(row, "email", "email_address") or f"{username}@exam.local"
+
+            participant = Participant(
+                reg_id=unique_exam_reg_id(),
+                event_id=event.id,
+                salutation="",
+                teacher_name=name,
+                mobile=unique_id,
+                email=email,
+                designation=row_value(row, "designation") or "Exam User",
+                subject=row_value(row, "subject") or "Exam",
+                school_name=row_value(row, "school_name", "school", "organization") or "Exam User",
+                school_area=row_value(row, "school_area", "area", "place") or "Exam User",
+                block=row_value(row, "block") or "Exam",
+                photo="",
+                extra_data=json.dumps({
+                    "exam_unique_id": {
+                        "label": "Exam Unique ID",
+                        "value": unique_id
+                    }
+                }),
+            )
+            db.session.add(participant)
+            created += 1
+        else:
+            updated += 1
+            participant.teacher_name = name or participant.teacher_name
+
+        participant.exam_username = username
+        participant.exam_password_hash = generate_password_hash(password)
+
+    db.session.commit()
+
+    return redirect(url_for(
+        "admin.manage_event_exams",
+        event_id=event.id,
+        import_created=created,
+        import_updated=updated,
+        import_skipped=skipped
+    ))
 
 
 @admin_bp.route("/admin/events", methods=["GET", "POST"])

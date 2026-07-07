@@ -218,6 +218,9 @@ DEFAULT_EVENT_FIELDS = {
 
 
 def default_fields_for_registration_type(registration_type):
+    if registration_type == "no_registration":
+        return []
+
     return DEFAULT_EVENT_FIELDS.get(
         registration_type or "teacher",
         DEFAULT_EVENT_FIELDS["teacher"]
@@ -442,6 +445,16 @@ def ensure_participant_schema():
             if "extra_data" in existing_columns
             else "NULL"
         )
+        exam_username_expr = (
+            "exam_username"
+            if "exam_username" in existing_columns
+            else "NULL"
+        )
+        exam_password_hash_expr = (
+            "exam_password_hash"
+            if "exam_password_hash" in existing_columns
+            else "NULL"
+        )
 
         cursor.execute("PRAGMA foreign_keys = OFF")
         cursor.execute(
@@ -466,6 +479,8 @@ def ensure_participant_schema():
                 download_count INTEGER DEFAULT 0,
                 last_download DATETIME,
                 certificate_generated BOOLEAN DEFAULT 0,
+                exam_username VARCHAR(80),
+                exam_password_hash VARCHAR(255),
                 created_at DATETIME,
                 FOREIGN KEY(event_id) REFERENCES events (id)
             )
@@ -493,6 +508,8 @@ def ensure_participant_schema():
                 download_count,
                 last_download,
                 certificate_generated,
+                exam_username,
+                exam_password_hash,
                 created_at
             )
             SELECT
@@ -515,6 +532,8 @@ def ensure_participant_schema():
                 COALESCE(download_count, 0),
                 last_download,
                 COALESCE(certificate_generated, 0),
+                {exam_username_expr},
+                {exam_password_hash_expr},
                 created_at
             FROM participants
             """
@@ -533,6 +552,10 @@ def ensure_participant_schema():
             "CREATE INDEX IF NOT EXISTS idx_participants_event_id "
             "ON participants (event_id)"
         )
+        cursor.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_participants_exam_username_unique "
+            "ON participants (exam_username)"
+        )
         cursor.execute("PRAGMA foreign_keys = ON")
     else:
         required_columns = {
@@ -543,6 +566,8 @@ def ensure_participant_schema():
             "download_count": "download_count INTEGER DEFAULT 0",
             "last_download": "last_download DATETIME",
             "certificate_generated": "certificate_generated BOOLEAN DEFAULT 0",
+            "exam_username": "exam_username VARCHAR(80)",
+            "exam_password_hash": "exam_password_hash VARCHAR(255)",
         }
 
         for name, ddl in required_columns.items():
@@ -560,6 +585,10 @@ def ensure_participant_schema():
         cursor.execute(
             "CREATE INDEX IF NOT EXISTS idx_participants_event_id "
             "ON participants (event_id)"
+        )
+        cursor.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_participants_exam_username_unique "
+            "ON participants (exam_username)"
         )
 
     conn.commit()

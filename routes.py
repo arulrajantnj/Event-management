@@ -30,6 +30,7 @@ import re
 import uuid
 import traceback
 from urllib.parse import quote
+from werkzeug.security import check_password_hash
 
 # ==========================================================
 # Blueprint
@@ -68,13 +69,22 @@ def home():
     ).all()
     latest_events = events[:3]
     ticker_messages = [
-        event.marquee_message or f"{event.name} registration is now open."
+        event.marquee_message or (
+            f"{event.name} service is now available."
+            if event.registration_type == "no_registration"
+            else f"{event.name} registration is now open."
+        )
         for event in events
     ]
     return render_template(
         "index.html",
         events=events,
         latest_events=latest_events,
+        registration_events=[
+            event
+            for event in events
+            if event.registration_type != "no_registration"
+        ],
         ticker_messages=ticker_messages
     )
 
@@ -88,8 +98,16 @@ def active_events():
     ).all()
 
 
+def registration_events():
+    return [
+        event
+        for event in active_events()
+        if event.registration_type != "no_registration"
+    ]
+
+
 def selected_event_or_default(event_slug=None):
-    events = active_events()
+    events = registration_events()
     if not events:
         return [], None
 
@@ -698,6 +716,85 @@ def download_certificate(reg_id):
     return send_file(filepath, as_attachment=True)
 
 
+@routes.route("/downloads", methods=["GET", "POST"])
+def downloads():
+    participant = None
+    searched = False
+    error = ""
+
+    if request.method == "POST":
+        searched = True
+        reg_id = request.form.get("reg_id", "").strip().upper()
+        mobile = request.form.get("mobile", "").strip()
+
+        if not reg_id and not mobile:
+            error = "Enter your Registration ID or Mobile Number."
+        else:
+            query = Participant.query
+
+            if reg_id:
+                query = query.filter(Participant.reg_id == reg_id)
+
+            if mobile:
+                query = query.filter(Participant.mobile == mobile)
+
+            participant = query.order_by(Participant.created_at.desc()).first()
+
+    certificate_ready = bool(participant)
+
+    return render_template(
+        "downloads.html",
+        participant=participant,
+        searched=searched,
+        error=error,
+        certificate_ready=certificate_ready,
+    )
+
+
+@routes.route("/download-certificate-secure", methods=["POST"])
+def download_certificate_secure():
+    reg_id = request.form.get("reg_id", "").strip().upper()
+    mobile = request.form.get("mobile", "").strip()
+
+    participant = Participant.query.filter_by(
+        reg_id=reg_id,
+        mobile=mobile
+    ).first()
+
+    if not participant:
+        return render_template(
+            "downloads.html",
+            participant=None,
+            searched=True,
+            error="No matching registration was found.",
+            certificate_ready=False,
+        )
+
+    result = generate_certificate(participant)
+
+    if not result.get("success"):
+        return render_template(
+            "downloads.html",
+            participant=participant,
+            searched=True,
+            error=result.get("error", "Certificate is not available yet."),
+            certificate_ready=False,
+        )
+
+    participant.download_count = (participant.download_count or 0) + 1
+    participant.last_download = datetime.utcnow()
+    participant.certificate_generated = True
+    db.session.commit()
+
+    filepath = result.get("certificate_path") or os.path.join(
+        "static",
+        "generated_certificates",
+        f"{participant.reg_id}.png"
+    )
+
+    return send_file(filepath, as_attachment=True)
+
+
 # ==========================================================
 # CERTIFICATE PAGE (FIXED)
 # ==========================================================
@@ -729,18 +826,23 @@ def certificate(id):
 def exam_login():
 
     if request.method == "POST":
-        reg_id = request.form.get("reg_id", "").strip().upper()
-        mobile = request.form.get("mobile", "").strip()
+        username = request.form.get("username", "").strip()
+        password = request.form.get("password", "")
 
         participant = Participant.query.filter_by(
-            reg_id=reg_id,
-            mobile=mobile
+            exam_username=username
         ).first()
 
-        if not participant or not participant.event or not participant.event.exam_enabled:
+        if (
+            not participant
+            or not participant.exam_password_hash
+            or not check_password_hash(participant.exam_password_hash, password)
+            or not participant.event
+            or not participant.event.exam_enabled
+        ):
             return render_template(
                 "exam_login.html",
-                error="Invalid registration ID, mobile number, or exam access is not enabled for this event."
+                error="Invalid username, password, or exam access is not enabled for this event."
             )
 
         session["exam_participant_id"] = participant.id
