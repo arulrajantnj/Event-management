@@ -32,6 +32,7 @@ import uuid
 import traceback
 from urllib.parse import quote
 from werkzeug.security import check_password_hash
+from PIL import Image, ImageDraw, ImageFont
 
 # ==========================================================
 # Blueprint
@@ -55,6 +56,53 @@ print("=" * 60)
 print("SRI VANDURAI EVENTS")
 print("routes.py Loaded Successfully")
 print("=" * 60)
+
+CODE39_PATTERNS = {
+    "0": "101001101101",
+    "1": "110100101011",
+    "2": "101100101011",
+    "3": "110110010101",
+    "4": "101001101011",
+    "5": "110100110101",
+    "6": "101100110101",
+    "7": "101001011011",
+    "8": "110100101101",
+    "9": "101100101101",
+    "A": "110101001011",
+    "B": "101101001011",
+    "C": "110110100101",
+    "D": "101011001011",
+    "E": "110101100101",
+    "F": "101101100101",
+    "G": "101010011011",
+    "H": "110101001101",
+    "I": "101101001101",
+    "J": "101011001101",
+    "K": "110101010011",
+    "L": "101101010011",
+    "M": "110110101001",
+    "N": "101011010011",
+    "O": "110101101001",
+    "P": "101101101001",
+    "Q": "101010110011",
+    "R": "110101011001",
+    "S": "101101011001",
+    "T": "101011011001",
+    "U": "110010101011",
+    "V": "100110101011",
+    "W": "110011010101",
+    "X": "100101101011",
+    "Y": "110010110101",
+    "Z": "100110110101",
+    "-": "100101011011",
+    ".": "110010101101",
+    " ": "100110101101",
+    "$": "100100100101",
+    "/": "100100101001",
+    "+": "100101001001",
+    "%": "101001001001",
+    "*": "100101101101",
+}
 
 # ==========================================================
 # HOME
@@ -239,6 +287,9 @@ def event_field_state(event):
         "field_names": available_field_names,
         "payment_enabled": bool(event.payment_enabled),
         "whatsapp_ack_enabled": bool(event.whatsapp_ack_enabled),
+        "whatsapp_group_enabled": bool(event.whatsapp_group_enabled),
+        "acknowledgement_enabled": bool(event.acknowledgement_enabled),
+        "certificate_enabled": bool(event.certificate_enabled),
         "qr_sharing_enabled": bool(event.qr_sharing_enabled),
     }
 
@@ -317,6 +368,120 @@ def whatsapp_ack_link(event, participant):
         participant_name=participant.teacher_name
     )
     return f"https://wa.me/91{participant.mobile}?text={quote(message)}"
+
+
+def selected_code_fields(event):
+    raw_fields = (event.code_fields or "").splitlines() if event else []
+    fields = [item.strip() for item in raw_fields if item.strip()]
+    return fields or ["attendance_url", "reg_id", "participant_name", "event_name"]
+
+
+def registration_id_for_event(event):
+    prefix = re.sub(r"[^A-Z0-9-]+", "", (event.reg_id_prefix or "EVT").upper()) or "EVT"
+    padding = min(max(int(event.reg_id_padding or 4), 1), 10)
+    next_number = max(int(event.reg_id_next_number or 1), 1)
+
+    for serial_number in range(next_number, next_number + 1000):
+        reg_id = f"{prefix}{serial_number:0{padding}d}"
+        if not Participant.query.filter_by(reg_id=reg_id).first():
+            event.reg_id_next_number = serial_number + 1
+            return reg_id
+
+    fallback = f"{prefix}{uuid.uuid4().hex[:8].upper()}"
+    event.reg_id_next_number = next_number + 1000
+    return fallback[:30]
+
+
+def participant_code_values(event, participant):
+    return {
+        "attendance_url": url_for(
+            "admin.mark_attendance",
+            reg_id=participant.reg_id,
+            _external=True
+        ),
+        "reg_id": participant.reg_id,
+        "event_name": event.name if event else "",
+        "participant_name": participant.teacher_name or "",
+        "mobile": participant.mobile or "",
+        "email": participant.email or "",
+        "designation": participant.designation or "",
+        "subject": participant.subject or "",
+        "school_name": participant.school_name or "",
+        "school_area": participant.school_area or "",
+        "block": participant.block or "",
+    }
+
+
+def code_payload_for_participant(event, participant):
+    values = participant_code_values(event, participant)
+    lines = []
+
+    for field_name in selected_code_fields(event):
+        value = values.get(field_name, "")
+        if value:
+            if field_name == "attendance_url":
+                lines.append(value)
+                continue
+            label = field_name.replace("_", " ").title()
+            lines.append(f"{label}: {value}")
+
+    return "\n".join(lines) or participant.reg_id
+
+
+def render_code39_barcode(value, path):
+    safe_value = "".join(
+        char for char in (value or "").upper()
+        if char in CODE39_PATTERNS and char != "*"
+    ) or "INVALID"
+    encoded = f"*{safe_value}*"
+    bar_width = 3
+    wide_multiplier = 3
+    gap = bar_width
+    height = 110
+    quiet = 24
+    text_height = 32
+
+    width = quiet * 2
+    for char in encoded:
+        pattern = CODE39_PATTERNS[char]
+        width += sum((wide_multiplier if bit == "1" else 1) * bar_width for bit in pattern) + gap
+
+    image = Image.new("RGB", (width, height + text_height), "white")
+    draw = ImageDraw.Draw(image)
+    x = quiet
+
+    for char in encoded:
+        pattern = CODE39_PATTERNS[char]
+        for index, bit in enumerate(pattern):
+            element_width = (wide_multiplier if bit == "1" else 1) * bar_width
+            if index % 2 == 0:
+                draw.rectangle([x, 10, x + element_width - 1, height], fill="black")
+            x += element_width
+        x += gap
+
+    try:
+        font = ImageFont.truetype("arial.ttf", 18)
+    except OSError:
+        font = ImageFont.load_default()
+
+    bbox = draw.textbbox((0, 0), safe_value, font=font)
+    text_width = bbox[2] - bbox[0]
+    draw.text(((width - text_width) / 2, height + 6), safe_value, fill="black", font=font)
+    image.save(path)
+
+
+def generate_participant_code(event, participant):
+    filename = f"{participant.reg_id}.png"
+    path = os.path.join(QR_FOLDER, filename)
+
+    if event and event.code_type == "barcode":
+        render_code39_barcode(participant.reg_id, path)
+    else:
+        qr = qrcode.make(code_payload_for_participant(event, participant))
+        qr.save(path)
+
+    participant.qr_code = os.path.join("generated_qr", filename)
+    return path
 
 
 def current_exam_participant():
@@ -528,6 +693,10 @@ def register():
             "event_payment_link": selected_event.payment_link or "",
             "event_payment_notes": selected_event.payment_notes or "",
             "event_whatsapp_ack_enabled": bool(selected_event.whatsapp_ack_enabled),
+            "event_whatsapp_group_enabled": bool(selected_event.whatsapp_group_enabled),
+            "event_whatsapp_group_link": selected_event.whatsapp_group_link or "",
+            "event_acknowledgement_enabled": bool(selected_event.acknowledgement_enabled),
+            "event_certificate_enabled": bool(selected_event.certificate_enabled),
             "event_qr_sharing_enabled": bool(selected_event.qr_sharing_enabled),
             "event_fields": event_fields,
             "field_values": field_values,
@@ -640,7 +809,7 @@ def confirm_registration():
             form_values=data.get("field_values", data),
         )
 
-    reg_id = f"EVT2026{uuid.uuid4().hex[:8].upper()}"
+    reg_id = registration_id_for_event(event)
 
     participant = Participant(
         reg_id=reg_id,
@@ -687,40 +856,36 @@ def confirm_registration():
     # --------------------------------------------
     # Generate QR Code
     # --------------------------------------------
-    qr_data = f"""
-Registration ID : {participant.reg_id}
-Name : {participant.teacher_name}
-Designation : {participant.designation}
-School : {participant.school_name}
-"""
+    generate_participant_code(event, participant)
+    db.session.commit()
 
-    qr = qrcode.make(qr_data)
-    qr.save(os.path.join(QR_FOLDER, f"{participant.reg_id}.png"))
+    if event.certificate_enabled:
+        try:
 
-    try:
+            # ----------------------------------------
+            # Generate Certificate
+            # ----------------------------------------
+            certificate_file = generate_certificate(participant)
+            if not certificate_file.get("success"):
+                raise RuntimeError(
+                    certificate_file.get("error", "certificate_generation_failed")
+                )
+            print("Certificate Generated :", certificate_file)
 
-        # ----------------------------------------
-        # Generate Certificate
-        # ----------------------------------------
-        certificate_file = generate_certificate(participant)
-        if not certificate_file.get("success"):
-            raise RuntimeError(
-                certificate_file.get("error", "certificate_generation_failed")
-            )
-        print("Certificate Generated :", certificate_file)
+            db.session.commit()
 
-        db.session.commit()
+            print("Registration Completed Successfully")
 
-        print("Registration Completed Successfully")
+        except Exception as e:
 
-    except Exception as e:
+            print("=" * 60)
+            print("CERTIFICATE ERROR")
+            traceback.print_exc()
+            print("=" * 60)
 
-        print("=" * 60)
-        print("CERTIFICATE ERROR")
-        traceback.print_exc()
-        print("=" * 60)
-
-        return f"<h2>Error</h2><pre>{e}</pre>", 500
+            return f"<h2>Error</h2><pre>{e}</pre>", 500
+    else:
+        print("Certificate generation skipped for this event")
 
     session.pop("registration", None)
 
@@ -735,10 +900,18 @@ School : {participant.school_name}
 @routes.route("/qrcode/<reg_id>")
 def qrcode_image(reg_id):
 
+    participant = Participant.query.filter_by(reg_id=reg_id).first()
+    if participant and participant.event and not participant.event.qr_sharing_enabled:
+        return "QR code sharing is not enabled for this event.", 403
+
     filepath = os.path.join(QR_FOLDER, f"{reg_id}.png")
 
+    if participant and participant.event and not os.path.exists(filepath):
+        generate_participant_code(participant.event, participant)
+        db.session.commit()
+
     if not os.path.exists(filepath):
-        return "QR not found"
+        return "Code image not found"
 
     return send_file(filepath, mimetype="image/png")
 
@@ -785,7 +958,11 @@ def downloads():
 
             participant = query.order_by(Participant.created_at.desc()).first()
 
-    certificate_ready = bool(participant)
+    certificate_ready = bool(
+        participant
+        and participant.event
+        and participant.event.certificate_enabled
+    )
 
     return render_template(
         "downloads.html",
@@ -812,6 +989,15 @@ def download_certificate_secure():
             participant=None,
             searched=True,
             error="No matching registration was found.",
+            certificate_ready=False,
+        )
+
+    if not participant.event or not participant.event.certificate_enabled:
+        return render_template(
+            "downloads.html",
+            participant=participant,
+            searched=True,
+            error="Certificate download is not enabled for this event.",
             certificate_ready=False,
         )
 
@@ -847,6 +1033,9 @@ def download_certificate_secure():
 def certificate(id):
 
     participant = Participant.query.get_or_404(id)
+
+    if not participant.event or not participant.event.certificate_enabled:
+        return "Certificate download is not enabled for this event.", 403
 
     try:
         result = generate_certificate(participant)

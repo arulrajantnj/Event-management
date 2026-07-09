@@ -1,0 +1,78 @@
+{% extends "admin/admin_base.html" %}
+
+{% block title %}Attendance Dashboard{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/attendance.css') }}">
+{% endblock %}
+
+{% block content %}
+{% include "admin/attendance/_nav.html" %}
+
+<div class="row g-3 mb-4">
+    {% set cards = [
+        ("Total Participants", stats.total, "primary", "users"),
+        ("Present", stats.present, "success", "user-check"),
+        ("Absent", stats.absent, "warning", "user-xmark"),
+        ("Attendance %", stats.percentage ~ "%", "info", "percent"),
+        ("QR Attendance Count", stats.qr_count, "dark", "qrcode"),
+        ("Manual Attendance Count", stats.manual_count, "secondary", "hand-pointer"),
+        ("Duplicate Scan Count", stats.duplicate_count, "danger", "copy")
+    ] %}
+    {% for label, value, color, icon in cards %}
+    <div class="col-md-6 col-xl-3">
+        <div class="attendance-stat border-start border-{{ color }} border-5">
+            <div>
+                <div class="text-muted small">{{ label }}</div>
+                <div class="h3 mb-0">{{ value }}</div>
+            </div>
+            <i class="fa-solid fa-{{ icon }} text-{{ color }}"></i>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<div class="row g-4">
+    <div class="col-lg-6"><canvas class="attendance-chart" id="hourChart"></canvas></div>
+    <div class="col-lg-6"><canvas class="attendance-chart" id="subjectChart"></canvas></div>
+    <div class="col-lg-6"><canvas class="attendance-chart" id="blockChart"></canvas></div>
+    <div class="col-lg-6"><canvas class="attendance-chart" id="schoolChart"></canvas></div>
+</div>
+
+<div class="card mt-4">
+    <div class="card-header bg-dark text-white">Recent Attendance</div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-striped mb-0">
+                <thead><tr><th>Reg No</th><th>Name</th><th>School</th><th>Time</th><th>Method</th></tr></thead>
+                <tbody>
+                    {% for row in recent %}
+                    <tr>
+                        <td><code>{{ row.participant.reg_id }}</code></td>
+                        <td>{{ row.participant.teacher_name }}</td>
+                        <td>{{ row.participant.school_name }}</td>
+                        <td>{{ row.attendance_time.strftime("%d-%m-%Y %H:%M") }}</td>
+                        <td><span class="badge bg-primary">{{ row.method }}</span></td>
+                    </tr>
+                    {% else %}
+                    <tr><td colspan="5" class="text-center text-muted py-4">No attendance marked today.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+window.attendanceCharts = {
+    hour: {{ stats.by_hour|tojson }},
+    subject: {{ stats.by_subject|tojson }},
+    block: {{ stats.by_block|tojson }},
+    school: {{ stats.by_school|tojson }}
+};
+</script>
+<script src="{{ url_for('static', filename='js/attendance.js') }}"></script>
+{% endblock %}

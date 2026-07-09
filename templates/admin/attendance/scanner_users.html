@@ -1,0 +1,110 @@
+{% extends "admin/admin_base.html" %}
+
+{% block title %}Scanner Users{% endblock %}
+
+{% block content %}
+{% include "admin/attendance/_nav.html" %}
+
+<div class="row g-4">
+    <div class="col-lg-4">
+        <div class="card">
+            <div class="card-header bg-dark text-white">Add Approved Scanner User</div>
+            <div class="card-body">
+                <form method="POST">
+                    <input type="hidden" name="action" value="create">
+                    <div class="mb-3">
+                        <label class="form-label">Name</label>
+                        <input name="name" class="form-control" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Username</label>
+                        <input name="username" class="form-control" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Password</label>
+                        <input name="password" type="password" class="form-control" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Restrict to Event</label>
+                        <select name="event_id" class="form-select">
+                            <option value="">All Events</option>
+                            {% for event in events %}
+                            <option value="{{ event.id }}">{{ event.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <button class="btn btn-success w-100">
+                        <i class="fa-solid fa-user-check"></i> Create Approved User
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-header bg-primary text-white">Approved / Restricted Scanner Users</div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-striped mb-0 align-middle">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Username</th>
+                                <th>Event</th>
+                                <th>Status</th>
+                                <th>Last Login</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for user in users %}
+                            <tr>
+                                <td>{{ user.name }}</td>
+                                <td><code>{{ user.username }}</code></td>
+                                <td>{{ user.event.name if user.event else "All Events" }}</td>
+                                <td>
+                                    {% if user.is_active and user.is_approved %}
+                                    <span class="badge bg-success">Approved</span>
+                                    {% elif not user.is_approved %}
+                                    <span class="badge bg-warning text-dark">Pending</span>
+                                    {% else %}
+                                    <span class="badge bg-secondary">Inactive</span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ user.last_login_at.strftime("%d-%m-%Y %H:%M") if user.last_login_at else "" }}</td>
+                                <td>
+                                    <form method="POST" class="d-inline">
+                                        <input type="hidden" name="user_id" value="{{ user.id }}">
+                                        <input type="hidden" name="action" value="toggle">
+                                        <button class="btn btn-sm btn-outline-secondary">{{ "Disable" if user.is_active else "Enable" }}</button>
+                                    </form>
+                                    {% if not user.is_approved %}
+                                    <form method="POST" class="d-inline">
+                                        <input type="hidden" name="user_id" value="{{ user.id }}">
+                                        <input type="hidden" name="action" value="approve">
+                                        <button class="btn btn-sm btn-outline-success">Approve</button>
+                                    </form>
+                                    {% endif %}
+                                    <form method="POST" class="d-inline">
+                                        <input type="hidden" name="user_id" value="{{ user.id }}">
+                                        <input type="hidden" name="action" value="delete">
+                                        <button class="btn btn-sm btn-outline-danger">Delete</button>
+                                    </form>
+                                </td>
+                            </tr>
+                            {% else %}
+                            <tr><td colspan="6" class="text-center text-muted py-4">No scanner users created.</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div class="alert alert-info mt-3">
+            Mobile scanner URL: <strong>{{ request.url_root.rstrip('/') }}{{ url_for('attendance.scanner_login') }}</strong>
+        </div>
+    </div>
+</div>
+{% endblock %}

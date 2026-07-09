@@ -34,16 +34,39 @@ body{
     background:linear-gradient(135deg,#0d6efd,#198754);
     color:#fff;
     text-align:center;
-    padding:35px;
+    padding:28px 24px 32px;
 }
 
-.header-banner h2{
+.registration-brand{
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap:14px;
+    margin-bottom:18px;
+}
+
+.registration-logo{
+    width:72px;
+    height:72px;
+    object-fit:cover;
+    border-radius:50%;
+    background:#fff;
+    padding:5px;
+    box-shadow:0 8px 18px rgba(0,0,0,.18);
+}
+
+.registration-brand-name{
+    margin:0;
+    font-size:26px;
+    line-height:1.1;
+    font-weight:800;
+    letter-spacing:.02em;
+}
+
+.header-banner h1{
     font-weight:bold;
-}
-
-.header-banner p{
-    margin-bottom:0;
-    font-size:18px;
+    font-size:32px;
+    margin:0;
 }
 
 .card-body{
@@ -93,28 +116,8 @@ body{
     border-radius:10px;
 }
 
-.alert,
-.feature-box,
-.event-summary{
+.alert{
     border-radius:12px;
-}
-
-.event-summary{
-    background:#f3f7ff;
-    border:1px solid #d7e3ff;
-    padding:18px;
-}
-
-.feature-box{
-    border:1px solid #dbe6ff;
-    background:#f8fbff;
-    padding:16px;
-    height:100%;
-}
-
-.feature-box h6{
-    font-weight:700;
-    margin-bottom:8px;
 }
 
 </style>
@@ -133,19 +136,22 @@ body{
 
 <div class="header-banner">
 
-<h2>
+<div class="registration-brand">
+    <img src="{{ url_for('static', filename='images/logo.png') }}"
+         class="registration-logo"
+         alt="Vandurai Events Logo">
+    <div>
+        <p class="registration-brand-name">VANDURAI EVENTS</p>
+    </div>
+</div>
 
-<i class="fa-solid fa-user-plus"></i>
-
-Event Registration Portal
-
-</h2>
-
-<p>
-
-Register for the selected event with the fields enabled by the admin team.
-
-</p>
+<h1>
+{% if selected_event %}
+{{ selected_event.name }}
+{% else %}
+Event Registration
+{% endif %}
+</h1>
 
 </div>
 
@@ -187,36 +193,6 @@ required>
 </select>
 </div>
 
-{% if selected_event %}
-<div class="event-summary">
-    <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap">
-        <div>
-            <h4 class="mb-1">{{ selected_event.name }}</h4>
-            <p class="mb-2 text-muted">{{ selected_event.description or "Registration is currently open." }}</p>
-            <div class="d-flex flex-wrap gap-2">
-                <span class="badge text-bg-info">{{ selected_event.registration_type|title }}</span>
-                {% if selected_event.collect_photo and selected_event.requires_photo %}
-                <span class="badge bg-primary">Photo Required</span>
-                {% elif selected_event.collect_photo %}
-                <span class="badge bg-warning text-dark">Photo Optional</span>
-                {% else %}
-                <span class="badge bg-secondary">No Photo Needed</span>
-                {% endif %}
-                {% if selected_event.payment_enabled %}
-                <span class="badge bg-success">Payment Enabled</span>
-                {% endif %}
-                {% if selected_event.whatsapp_ack_enabled %}
-                <span class="badge bg-success">WhatsApp Acknowledgement</span>
-                {% endif %}
-                {% if selected_event.qr_sharing_enabled %}
-                <span class="badge bg-success">QR Sharing</span>
-                {% endif %}
-            </div>
-        </div>
-    </div>
-</div>
-{% endif %}
-
 {% if selected_event and selected_event.payment_enabled %}
 <div class="alert alert-warning mt-3">
     <strong>Payment Gateway Enabled:</strong>
@@ -231,26 +207,16 @@ required>
 </div>
 {% endif %}
 
-<div class="row g-3 mt-1">
-    <div class="col-md-4">
-        <div class="feature-box">
-            <h6>Dynamic Data Collection</h6>
-            <p class="mb-0">This form changes according to the selected event setup in the admin panel.</p>
-        </div>
-    </div>
-    <div class="col-md-4">
-        <div class="feature-box">
-            <h6>Duplicate Protection</h6>
-            <p class="mb-0">The same mobile number cannot register twice for the same event.</p>
-        </div>
-    </div>
-    <div class="col-md-4">
-        <div class="feature-box">
-            <h6>Event Features</h6>
-            <p class="mb-0">Payment, WhatsApp acknowledgement, and QR sharing can be enabled per event.</p>
-        </div>
-    </div>
+{% if selected_event and selected_event.whatsapp_group_enabled and selected_event.whatsapp_group_link %}
+<div class="alert alert-success mt-3">
+    <strong>WhatsApp Group:</strong>
+    Join the event group for participant updates.
+    <a href="{{ selected_event.whatsapp_group_link }}" target="_blank" class="btn btn-sm btn-success ms-2">
+        <i class="fa-brands fa-whatsapp"></i>
+        Join Group
+    </a>
 </div>
+{% endif %}
 
 {% if field_state.get("collect_photo") %}
 <div class="section-title">

@@ -54,6 +54,68 @@ body{
     width:220px;
 }
 
+.sponsor-strip{
+    border:1px solid #dbe4f0;
+    border-radius:16px;
+    background:#fff;
+    padding:18px;
+}
+
+.sponsor-layout{
+    display:flex;
+    align-items:center;
+    gap:18px;
+    flex-wrap:wrap;
+}
+
+.sponsor-layout.logo-left{
+    justify-content:space-between;
+}
+
+.sponsor-layout.logo-center,
+.sponsor-layout.banner-center,
+.sponsor-layout.banner-full{
+    justify-content:center;
+}
+
+.sponsor-layout.logo-right .sponsor-logo-panel{
+    order:2;
+}
+
+.sponsor-layout.logo-right .sponsor-banner-panel{
+    order:1;
+}
+
+.sponsor-layout.banner-left .sponsor-banner-panel{
+    order:1;
+}
+
+.sponsor-layout.banner-left .sponsor-logo-panel{
+    order:2;
+}
+
+.sponsor-layout.banner-full .sponsor-banner-panel{
+    flex:1 1 100%;
+}
+
+.sponsor-logo-panel,
+.sponsor-banner-panel{
+    text-align:center;
+}
+
+.sponsor-logo{
+    display:block;
+    max-width:100%;
+    margin:0 auto;
+}
+
+.sponsor-image{
+    display:block;
+    max-width:100%;
+    margin:0 auto;
+    border-radius:12px;
+}
+
 .table th{
     width:35%;
     background:#f8f9fa;
@@ -111,6 +173,37 @@ Registration ID :
 </div>
 {% endif %}
 
+{% if participant.event and participant.event.acknowledgement_enabled and (participant.event.sponsor_brand or participant.event.sponsor_logo or participant.event.sponsor_image) %}
+{% set sponsor_fit = participant.event.sponsor_image_fit or 'contain' %}
+{% set logo_position = participant.event.sponsor_logo_position or 'left' %}
+{% set banner_position = participant.event.sponsor_banner_position or 'right' %}
+<div class="sponsor-strip mb-4">
+    <div class="sponsor-layout logo-{{ logo_position }} banner-{{ banner_position }}">
+        <div class="sponsor-logo-panel">
+            {% if participant.event.sponsor_logo %}
+            <img
+            src="{{ url_for('static', filename='sponsors/' + participant.event.sponsor_logo) }}"
+            class="sponsor-logo"
+            style="width:{{ participant.event.sponsor_logo_width or 160 }}px;height:{{ participant.event.sponsor_logo_height or 90 }}px;object-fit:{{ sponsor_fit }};"
+            alt="Sponsor logo">
+            {% endif %}
+            {% if participant.event.sponsor_brand %}
+            <div class="fw-bold mt-2">{{ participant.event.sponsor_brand }}</div>
+            {% endif %}
+        </div>
+        {% if participant.event.sponsor_image %}
+        <div class="sponsor-banner-panel">
+            <img
+            src="{{ url_for('static', filename='sponsors/' + participant.event.sponsor_image) }}"
+            class="sponsor-image"
+            style="width:{{ participant.event.sponsor_banner_width or 520 }}px;height:{{ participant.event.sponsor_banner_height or 170 }}px;object-fit:{{ sponsor_fit }};"
+            alt="Sponsor image">
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endif %}
+
 {% if participant.event and participant.event.payment_enabled %}
 <div class="alert alert-warning">
     <strong>Payment Gateway Enabled</strong>
@@ -127,6 +220,17 @@ Registration ID :
         </a>
     </div>
     {% endif %}
+</div>
+{% endif %}
+
+{% if participant.event and participant.event.whatsapp_group_enabled and participant.event.whatsapp_group_link %}
+<div class="alert alert-success">
+    <strong>WhatsApp Group:</strong>
+    Join the participant group for event updates.
+    <a href="{{ participant.event.whatsapp_group_link }}" target="_blank" class="btn btn-sm btn-success">
+        <i class="fa-brands fa-whatsapp"></i>
+        Join Group
+    </a>
 </div>
 {% endif %}
 
@@ -243,7 +347,7 @@ class="participant-photo">
 
 <div class="text-center">
 
-<h4>QR Code</h4>
+<h4>{{ "Barcode" if participant.event.code_type == "barcode" else "QR Code" }}</h4>
 
 <img
 src="/qrcode/{{ participant.reg_id }}"
@@ -257,10 +361,11 @@ target="_blank"
 class="btn btn-primary">
 
 <i class="fa-solid fa-download"></i>
-Download QR Code
+Download {{ "Barcode" if participant.event.code_type == "barcode" else "QR Code" }}
 
 </a>
 
+{% if participant.event.code_type != "barcode" %}
 <button
 type="button"
 id="shareQrButton"
@@ -269,12 +374,14 @@ data-share-url="/qrcode/{{ participant.reg_id }}">
 <i class="fa-solid fa-share-nodes"></i>
 Share QR Code
 </button>
+{% endif %}
 
 </div>
 {% endif %}
 
 <div class="text-center mt-4">
 
+{% if participant.event and participant.event.certificate_enabled %}
 <a
 href="/certificate/{{ participant.id }}"
 class="btn btn-success">
@@ -283,6 +390,7 @@ class="btn btn-success">
 Download Certificate
 
 </a>
+{% endif %}
 
 {% if whatsapp_link %}
 <a
@@ -294,6 +402,7 @@ Send WhatsApp Acknowledgement
 </a>
 {% endif %}
 
+{% if participant.event and participant.event.acknowledgement_enabled %}
 <button
 onclick="window.print()"
 class="btn btn-info text-white">
@@ -302,6 +411,7 @@ class="btn btn-info text-white">
 Print Acknowledgement
 
 </button>
+{% endif %}
 
 <a
 href="/register"

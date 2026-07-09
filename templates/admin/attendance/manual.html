@@ -1,0 +1,27 @@
+{% extends "admin/admin_base.html" %}
+
+{% block title %}Manual Attendance{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/attendance.css') }}">
+{% endblock %}
+
+{% block content %}
+{% include "admin/attendance/_nav.html" %}
+
+<div class="card">
+    <div class="card-header bg-dark text-white">Manual Attendance</div>
+    <div class="card-body">
+        <div class="input-group input-group-lg">
+            <input id="manualSearch" class="form-control" placeholder="Search registration number, mobile number, or teacher name">
+            <button id="manualSearchBtn" class="btn btn-primary"><i class="fa-solid fa-search"></i> Search</button>
+        </div>
+        <input type="hidden" id="attendanceEventId" value="{{ selected_event_id or '' }}">
+        <div id="manualResults" class="row g-3 mt-3"></div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/attendance.js') }}"></script>
+{% endblock %}

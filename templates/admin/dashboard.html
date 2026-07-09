@@ -493,6 +493,15 @@ No Photo
 
 </small>
 
+{% if p.event and p.event.attendance_enabled %}
+<br>
+{% if p.is_present %}
+<span class="badge bg-success">Present</span>
+{% else %}
+<span class="badge bg-secondary">Not Present</span>
+{% endif %}
+{% endif %}
+
 </td>
 
 <td>
@@ -589,6 +598,7 @@ No Photo
 
 <div class="d-grid gap-2">
 
+{% if p.event and p.event.certificate_enabled %}
 <a
 href="/certificate/{{ p.id }}"
 class="btn btn-primary btn-sm btn-action">
@@ -598,6 +608,7 @@ class="btn btn-primary btn-sm btn-action">
 Certificate
 
 </a>
+{% endif %}
 
 <a
 href="/delete/{{ p.id }}"

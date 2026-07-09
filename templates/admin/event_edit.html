@@ -2,6 +2,45 @@
 
 {% block title %}Edit Event{% endblock %}
 
+{% block head %}
+<style>
+.sponsor-layout-preview{
+    display:flex;
+    align-items:center;
+    gap:12px;
+    min-height:150px;
+    padding:14px;
+    border:1px dashed #9fb3c8;
+    border-radius:12px;
+    background:#fff;
+}
+.sponsor-preview-logo,
+.sponsor-preview-banner{
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    border:2px solid #0d6efd;
+    border-radius:8px;
+    background:#edf4ff;
+    color:#0d47a1;
+    font-weight:700;
+    text-align:center;
+}
+.sponsor-preview-logo{
+    width:160px;
+    height:90px;
+}
+.sponsor-preview-banner{
+    width:360px;
+    max-width:100%;
+    height:120px;
+    border-color:#198754;
+    background:#effaf3;
+    color:#146c43;
+}
+</style>
+{% endblock %}
+
 {% block content %}
 
 <div class="row g-4">
@@ -14,7 +53,7 @@
                 </a>
             </div>
             <div class="card-body">
-                <form method="POST">
+                <form method="POST" enctype="multipart/form-data">
                     <div class="row g-3">
                         <div class="col-md-6">
                             <label class="form-label">Event Name</label>
@@ -93,6 +132,10 @@
                             <div class="border rounded-4 p-3 bg-light">
                                 <h6 class="mb-3">Acknowledgement & Sharing</h6>
                                 <div class="form-check mb-2">
+                                    <input class="form-check-input" type="checkbox" name="acknowledgement_enabled" id="acknowledgement_enabled" {% if event.acknowledgement_enabled %}checked{% endif %}>
+                                    <label class="form-check-label" for="acknowledgement_enabled">Enable acknowledgement slip / print</label>
+                                </div>
+                                <div class="form-check mb-2">
                                     <input class="form-check-input" type="checkbox" name="whatsapp_ack_enabled" id="whatsapp_ack_enabled" {% if event.whatsapp_ack_enabled %}checked{% endif %}>
                                     <label class="form-check-label" for="whatsapp_ack_enabled">Enable WhatsApp acknowledgement</label>
                                 </div>
@@ -101,9 +144,142 @@
                                     <textarea name="whatsapp_template" class="form-control" rows="3">{{ event.whatsapp_template or '' }}</textarea>
                                     <small class="text-muted">Available variables: <code>{event_name}</code>, <code>{reg_id}</code>, <code>{participant_name}</code></small>
                                 </div>
+                                <div class="form-check mb-2">
+                                    <input class="form-check-input" type="checkbox" name="whatsapp_group_enabled" id="whatsapp_group_enabled" {% if event.whatsapp_group_enabled %}checked{% endif %}>
+                                    <label class="form-check-label" for="whatsapp_group_enabled">Show WhatsApp group join link during registration</label>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">WhatsApp Group Link</label>
+                                    <input type="url" name="whatsapp_group_link" class="form-control" value="{{ event.whatsapp_group_link or '' }}" placeholder="https://chat.whatsapp.com/...">
+                                </div>
                                 <div class="form-check">
                                     <input class="form-check-input" type="checkbox" name="qr_sharing_enabled" id="qr_sharing_enabled" {% if event.qr_sharing_enabled %}checked{% endif %}>
                                     <label class="form-check-label" for="qr_sharing_enabled">Allow QR code download / sharing</label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-12">
+                            <div class="border rounded-4 p-3 bg-light">
+                                <h6 class="mb-3">Attendance, QR / Barcode & Registration ID</h6>
+                                <div class="form-check mb-3">
+                                    <input class="form-check-input" type="checkbox" name="attendance_enabled" id="attendance_enabled" {% if event.attendance_enabled %}checked{% endif %}>
+                                    <label class="form-check-label" for="attendance_enabled">Enable attendance marking by scanning code</label>
+                                </div>
+                                <div class="row g-3">
+                                    <div class="col-md-4">
+                                        <label class="form-label">Code Type</label>
+                                        <select name="code_type" class="form-select">
+                                            <option value="qr" {% if event.code_type != "barcode" %}selected{% endif %}>QR Code</option>
+                                            <option value="barcode" {% if event.code_type == "barcode" %}selected{% endif %}>Barcode</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label class="form-label">Registration Prefix</label>
+                                        <input type="text" name="reg_id_prefix" class="form-control" value="{{ event.reg_id_prefix or 'EVT' }}" maxlength="20">
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label class="form-label">Next Number</label>
+                                        <input type="number" name="reg_id_next_number" class="form-control" value="{{ event.reg_id_next_number or 1 }}" min="1">
+                                    </div>
+                                    <div class="col-md-2">
+                                        <label class="form-label">Digits</label>
+                                        <input type="number" name="reg_id_padding" class="form-control" value="{{ event.reg_id_padding or 4 }}" min="1" max="10">
+                                    </div>
+                                </div>
+                                {% set selected_code_fields = (event.code_fields or 'attendance_url\nreg_id\nparticipant_name\nevent_name').splitlines() %}
+                                <label class="form-label mt-3">Details inside QR / Code</label>
+                                <div class="row g-2">
+                                    {% for value, label in code_field_choices %}
+                                    <div class="col-md-6">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" name="code_fields" id="code_field_{{ value }}" value="{{ value }}" {% if value in selected_code_fields %}checked{% endif %}>
+                                            <label class="form-check-label" for="code_field_{{ value }}">{{ label }}</label>
+                                        </div>
+                                    </div>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-12">
+                            <div class="border rounded-4 p-3 bg-light">
+                                <h6 class="mb-3">Sponsor / Brand on Acknowledgement Slip</h6>
+                                <div class="row g-3">
+                                    <div class="col-12">
+                                        <label class="form-label">Sponsor Brand Name</label>
+                                        <input type="text" name="sponsor_brand" class="form-control" value="{{ event.sponsor_brand or '' }}" placeholder="Sponsor or brand name">
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label">Sponsor Logo</label>
+                                        <input type="file" name="sponsor_logo" class="form-control" accept=".jpg,.jpeg,.png,.webp,.gif">
+                                        {% if event.sponsor_logo %}
+                                        <small class="text-muted">Current: {{ event.sponsor_logo }}</small>
+                                        {% endif %}
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label">Sponsor Image / Banner</label>
+                                        <input type="file" name="sponsor_image" class="form-control" accept=".jpg,.jpeg,.png,.webp,.gif">
+                                        {% if event.sponsor_image %}
+                                        <small class="text-muted">Current: {{ event.sponsor_image }}</small>
+                                        {% endif %}
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label class="form-label">Logo Position</label>
+                                        <select name="sponsor_logo_position" class="form-select sponsor-layout-input" data-preview-target="logo">
+                                            {% for value, label in [("left", "Left"), ("center", "Center"), ("right", "Right")] %}
+                                            <option value="{{ value }}" {% if (event.sponsor_logo_position or 'left') == value %}selected{% endif %}>{{ label }}</option>
+                                            {% endfor %}
+                                        </select>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label class="form-label">Logo Width</label>
+                                        <input type="number" name="sponsor_logo_width" class="form-control sponsor-layout-input" value="{{ event.sponsor_logo_width or 160 }}" min="40" max="400" data-preview-style="logoWidth">
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label class="form-label">Logo Height</label>
+                                        <input type="number" name="sponsor_logo_height" class="form-control sponsor-layout-input" value="{{ event.sponsor_logo_height or 90 }}" min="30" max="240" data-preview-style="logoHeight">
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label class="form-label">Banner Position</label>
+                                        <select name="sponsor_banner_position" class="form-select sponsor-layout-input" data-preview-target="banner">
+                                            {% for value, label in [("right", "Right"), ("left", "Left"), ("center", "Center"), ("full", "Full Width")] %}
+                                            <option value="{{ value }}" {% if (event.sponsor_banner_position or 'right') == value %}selected{% endif %}>{{ label }}</option>
+                                            {% endfor %}
+                                        </select>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label class="form-label">Banner Width</label>
+                                        <input type="number" name="sponsor_banner_width" class="form-control sponsor-layout-input" value="{{ event.sponsor_banner_width or 520 }}" min="120" max="1100" data-preview-style="bannerWidth">
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label class="form-label">Banner Height</label>
+                                        <input type="number" name="sponsor_banner_height" class="form-control sponsor-layout-input" value="{{ event.sponsor_banner_height or 170 }}" min="60" max="420" data-preview-style="bannerHeight">
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label class="form-label">Image Fit</label>
+                                        <select name="sponsor_image_fit" class="form-select sponsor-layout-input" data-preview-style="fit">
+                                            {% for value, label in [("contain", "Contain"), ("cover", "Cover"), ("fill", "Stretch / Fill")] %}
+                                            <option value="{{ value }}" {% if (event.sponsor_image_fit or 'contain') == value %}selected{% endif %}>{{ label }}</option>
+                                            {% endfor %}
+                                        </select>
+                                    </div>
+                                    <div class="col-12">
+                                        <div class="sponsor-layout-preview mt-2" data-sponsor-preview>
+                                            <div class="sponsor-preview-logo">Logo</div>
+                                            <div class="sponsor-preview-banner">Banner Image</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-12">
+                            <div class="border rounded-4 p-3 bg-light">
+                                <h6 class="mb-3">Certificate</h6>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" name="certificate_enabled" id="certificate_enabled" {% if event.certificate_enabled %}checked{% endif %}>
+                                    <label class="form-check-label" for="certificate_enabled">Enable certificate generation / download</label>
                                 </div>
                             </div>
                         </div>
@@ -306,4 +482,35 @@
     </div>
 </div>
 
+{% endblock %}
+
+{% block scripts %}
+<script>
+function updateSponsorPreview(scope){
+    const preview = scope.querySelector("[data-sponsor-preview]");
+    if(!preview) return;
+    const logo = preview.querySelector(".sponsor-preview-logo");
+    const banner = preview.querySelector(".sponsor-preview-banner");
+    const value = name => {
+        const input = scope.querySelector(`[name="${name}"]`);
+        return input ? input.value : "";
+    };
+    logo.style.width = `${Math.max(40, parseInt(value("sponsor_logo_width") || 160, 10))}px`;
+    logo.style.height = `${Math.max(30, parseInt(value("sponsor_logo_height") || 90, 10))}px`;
+    banner.style.width = `${Math.max(120, Math.min(parseInt(value("sponsor_banner_width") || 520, 10), 520))}px`;
+    banner.style.height = `${Math.max(60, parseInt(value("sponsor_banner_height") || 170, 10))}px`;
+    const logoPosition = value("sponsor_logo_position") || "left";
+    const bannerPosition = value("sponsor_banner_position") || "right";
+    preview.style.justifyContent = bannerPosition === "full" || logoPosition === "center" || bannerPosition === "center" ? "center" : "space-between";
+    banner.style.flex = bannerPosition === "full" ? "1 1 auto" : "0 1 auto";
+}
+document.querySelectorAll("form").forEach(form => {
+    if(!form.querySelector("[data-sponsor-preview]")) return;
+    form.querySelectorAll(".sponsor-layout-input").forEach(input => {
+        input.addEventListener("input", () => updateSponsorPreview(form));
+        input.addEventListener("change", () => updateSponsorPreview(form));
+    });
+    updateSponsorPreview(form);
+});
+</script>
 {% endblock %}

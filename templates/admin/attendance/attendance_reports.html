@@ -1,0 +1,48 @@
+{% extends "admin/admin_base.html" %}
+
+{% block title %}Attendance Reports{% endblock %}
+
+{% block content %}
+{% include "admin/attendance/_nav.html" %}
+
+<div class="row g-4">
+    <div class="col-lg-4">
+        <div class="card h-100">
+            <div class="card-header bg-primary text-white">Attendance Summary</div>
+            <div class="card-body">
+                <div class="d-flex justify-content-between border-bottom py-2"><span>Total Participants</span><strong>{{ stats.total }}</strong></div>
+                <div class="d-flex justify-content-between border-bottom py-2"><span>Present</span><strong>{{ stats.present }}</strong></div>
+                <div class="d-flex justify-content-between border-bottom py-2"><span>Absent</span><strong>{{ stats.absent }}</strong></div>
+                <div class="d-flex justify-content-between border-bottom py-2"><span>Attendance Percentage</span><strong>{{ stats.percentage }}%</strong></div>
+                <div class="d-flex justify-content-between border-bottom py-2"><span>QR Attendance</span><strong>{{ stats.qr_count }}</strong></div>
+                <div class="d-flex justify-content-between py-2"><span>Manual Attendance</span><strong>{{ stats.manual_count }}</strong></div>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-8">
+        <div class="card h-100">
+            <div class="card-header bg-dark text-white">Download Reports</div>
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <h6>Present List</h6>
+                        <a class="btn btn-success btn-sm" href="{{ url_for('attendance.export', file_type='xlsx', event_id=selected_event_id, mode='present') }}">Excel</a>
+                        <a class="btn btn-danger btn-sm" href="{{ url_for('attendance.export', file_type='pdf', event_id=selected_event_id, mode='present') }}">PDF</a>
+                        <a class="btn btn-secondary btn-sm" href="{{ url_for('attendance.export', file_type='csv', event_id=selected_event_id, mode='present') }}">CSV</a>
+                    </div>
+                    <div class="col-md-6">
+                        <h6>Absent List</h6>
+                        <a class="btn btn-success btn-sm" href="{{ url_for('attendance.export', file_type='xlsx', event_id=selected_event_id, mode='absent') }}">Excel</a>
+                        <a class="btn btn-danger btn-sm" href="{{ url_for('attendance.export', file_type='pdf', event_id=selected_event_id, mode='absent') }}">PDF</a>
+                        <a class="btn btn-secondary btn-sm" href="{{ url_for('attendance.export', file_type='csv', event_id=selected_event_id, mode='absent') }}">CSV</a>
+                    </div>
+                </div>
+
+                <div class="alert alert-info mt-4 mb-0">
+                    Dashboard charts cover attendance by school, block, subject, and time. Export files include participant details for official reporting.
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

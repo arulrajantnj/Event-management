@@ -1,0 +1,131 @@
+{% extends "admin/admin_base.html" %}
+
+{% block title %}Attendance{% endblock %}
+
+{% block content %}
+
+<div class="row g-4">
+    <div class="col-lg-4">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                Attendance Scan
+            </div>
+            <div class="card-body">
+                {% if message %}
+                <div class="alert alert-{{ message_type }}">
+                    {{ message }}
+                </div>
+                {% endif %}
+
+                <form method="GET" action="{{ url_for('admin.attendance') }}" class="mb-3">
+                    <label class="form-label">Event</label>
+                    <select name="event_id" class="form-select" onchange="this.form.submit()">
+                        <option value="">All attendance-enabled events</option>
+                        {% for event in events %}
+                        <option value="{{ event.id }}" {% if selected_event_id == event.id %}selected{% endif %}>
+                            {{ event.name }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </form>
+
+                <form method="POST" action="{{ url_for('admin.attendance') }}">
+                    {% if selected_event_id %}
+                    <input type="hidden" name="event_id" value="{{ selected_event_id }}">
+                    {% endif %}
+                    <label class="form-label">Scan QR / Barcode</label>
+                    <input
+                        type="text"
+                        name="scan_text"
+                        id="scan_text"
+                        class="form-control form-control-lg"
+                        placeholder="Scan here or enter registration ID"
+                        autocomplete="off"
+                        autofocus>
+                    <button class="btn btn-success w-100 mt-3">
+                        <i class="fa-solid fa-check"></i>
+                        Mark Present
+                    </button>
+                </form>
+
+                <div class="row g-2 mt-3">
+                    <div class="col-6">
+                        <div class="border rounded p-3 text-center bg-light">
+                            <div class="h3 mb-0">{{ present_count }}</div>
+                            <div class="small text-muted">Present</div>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="border rounded p-3 text-center bg-light">
+                            <div class="h3 mb-0">{{ total_count }}</div>
+                            <div class="small text-muted">Loaded</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="alert alert-info mt-3 mb-0">
+                    USB barcode scanners usually type into this box and press Enter automatically.
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-header bg-dark text-white">
+                Attendance List
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-striped mb-0">
+                        <thead>
+                            <tr>
+                                <th>Participant</th>
+                                <th>Registration ID</th>
+                                <th>Event</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for participant in participants %}
+                            <tr>
+                                <td>
+                                    <strong>{{ participant.teacher_name }}</strong>
+                                    <div class="small text-muted">{{ participant.mobile }}</div>
+                                </td>
+                                <td><code>{{ participant.reg_id }}</code></td>
+                                <td>{{ participant.event.name if participant.event else "" }}</td>
+                                <td>
+                                    {% if participant.is_present %}
+                                    <span class="badge bg-success">Present</span>
+                                    {% if participant.attendance_marked_at %}
+                                    <div class="small text-muted">{{ participant.attendance_marked_at.strftime("%d-%m-%Y %H:%M") }}</div>
+                                    {% endif %}
+                                    {% else %}
+                                    <span class="badge bg-secondary">Not Present</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% else %}
+                            <tr>
+                                <td colspan="4" class="text-center py-4 text-muted">
+                                    No attendance-enabled participants found.
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+const scanInput = document.getElementById("scan_text");
+if (scanInput) {
+    scanInput.focus();
+}
+</script>
+
+{% endblock %}

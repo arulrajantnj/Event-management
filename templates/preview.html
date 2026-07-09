@@ -110,15 +110,27 @@ body{
                         </div>
                     </div>
 
-                    {% if event and (event.whatsapp_ack_enabled or event.qr_sharing_enabled) %}
+                    {% if event and (event.acknowledgement_enabled or event.certificate_enabled or event.whatsapp_ack_enabled or event.whatsapp_group_enabled or event.qr_sharing_enabled) %}
                     <div class="mt-4">
                         <h5>Enabled for this event</h5>
                         <div class="d-flex flex-wrap gap-2">
+                            {% if event.acknowledgement_enabled %}
+                            <span class="badge bg-success">Acknowledgement slip</span>
+                            {% endif %}
+                            {% if event.certificate_enabled %}
+                            <span class="badge bg-primary">Certificate</span>
+                            {% endif %}
                             {% if event.whatsapp_ack_enabled %}
                             <span class="badge bg-success">WhatsApp acknowledgement</span>
                             {% endif %}
+                            {% if event.whatsapp_group_enabled and event.whatsapp_group_link %}
+                            <a href="{{ event.whatsapp_group_link }}" target="_blank" class="badge bg-success text-decoration-none">Join WhatsApp group</a>
+                            {% endif %}
                             {% if event.qr_sharing_enabled %}
-                            <span class="badge bg-success">QR code sharing</span>
+                            <span class="badge bg-success">{{ "Barcode" if event.code_type == "barcode" else "QR code" }} sharing</span>
+                            {% endif %}
+                            {% if event.attendance_enabled %}
+                            <span class="badge bg-primary">Attendance scan</span>
                             {% endif %}
                         </div>
                     </div>

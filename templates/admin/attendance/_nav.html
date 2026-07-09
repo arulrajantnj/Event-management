@@ -1,0 +1,47 @@
+<div class="d-flex flex-wrap gap-2 mb-3">
+    <a href="{{ url_for('attendance.dashboard', event_id=selected_event_id) }}" class="btn btn-outline-primary btn-sm">
+        <i class="fa-solid fa-gauge"></i> Dashboard
+    </a>
+    <a href="{{ url_for('attendance.scanner', event_id=selected_event_id) }}" class="btn btn-outline-success btn-sm">
+        <i class="fa-solid fa-qrcode"></i> Live QR Scanner
+    </a>
+    <a href="{{ url_for('attendance.manual', event_id=selected_event_id) }}" class="btn btn-outline-dark btn-sm">
+        <i class="fa-solid fa-user-check"></i> Manual Attendance
+    </a>
+    <a href="{{ url_for('attendance.attendance_list', event_id=selected_event_id) }}" class="btn btn-outline-info btn-sm">
+        <i class="fa-solid fa-list"></i> Attendance List
+    </a>
+    <a href="{{ url_for('attendance.absent_list', event_id=selected_event_id) }}" class="btn btn-outline-warning btn-sm">
+        <i class="fa-solid fa-user-xmark"></i> Absent List
+    </a>
+    <a href="{{ url_for('attendance.duplicate_scan_log', event_id=selected_event_id) }}" class="btn btn-outline-danger btn-sm">
+        <i class="fa-solid fa-copy"></i> Duplicate Scan Log
+    </a>
+    <a href="{{ url_for('attendance.reports', event_id=selected_event_id) }}" class="btn btn-outline-primary btn-sm">
+        <i class="fa-solid fa-chart-pie"></i> Reports
+    </a>
+    <a href="{{ url_for('attendance.scanner_users', event_id=selected_event_id) }}" class="btn btn-outline-dark btn-sm">
+        <i class="fa-solid fa-users-gear"></i> Scanner Users
+    </a>
+    <a href="{{ url_for('attendance.export', file_type='xlsx', event_id=selected_event_id, mode='present') }}" class="btn btn-outline-success btn-sm">
+        <i class="fa-solid fa-file-excel"></i> Export Excel
+    </a>
+    <a href="{{ url_for('attendance.export', file_type='pdf', event_id=selected_event_id, mode='present') }}" class="btn btn-outline-danger btn-sm">
+        <i class="fa-solid fa-file-pdf"></i> Export PDF
+    </a>
+    <a href="{{ url_for('attendance.settings', event_id=selected_event_id) }}" class="btn btn-outline-secondary btn-sm">
+        <i class="fa-solid fa-gear"></i> Settings
+    </a>
+</div>
+
+<form method="GET" class="card card-body mb-4">
+    <label class="form-label fw-bold">Event</label>
+    <select name="event_id" class="form-select" onchange="this.form.submit()">
+        <option value="">All Events</option>
+        {% for event in events %}
+        <option value="{{ event.id }}" {% if selected_event_id == event.id %}selected{% endif %}>
+            {{ event.name }}
+        </option>
+        {% endfor %}
+    </select>
+</form>

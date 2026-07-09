@@ -13,10 +13,13 @@ from models import (
 from datetime import datetime
 from io import BytesIO
 import json
+import os
 import pandas as pd
 import re
 import uuid
+from werkzeug.utils import secure_filename
 from werkzeug.security import generate_password_hash
+from attendance_service import mark_attendance as service_mark_attendance
 
 
 admin_bp = Blueprint("admin", __name__)
@@ -57,6 +60,20 @@ DATA_TYPE_CHOICES = [
     ("date", "Date"),
 ]
 
+CODE_FIELD_CHOICES = [
+    ("attendance_url", "Attendance scan link"),
+    ("reg_id", "Registration ID"),
+    ("event_name", "Event Name"),
+    ("participant_name", "Participant Name"),
+    ("mobile", "Mobile Number"),
+    ("email", "Email"),
+    ("designation", "Designation"),
+    ("subject", "Subject"),
+    ("school_name", "School / Organization"),
+    ("school_area", "Area / Place"),
+    ("block", "Block"),
+]
+
 SYSTEM_FIELD_CHOICES = [
     ("salutation", "Salutation"),
     ("teacher_name", "Name Field"),
@@ -70,10 +87,41 @@ SYSTEM_FIELD_CHOICES = [
 ]
 
 PROTECTED_FIELD_NAMES = {"teacher_name", "mobile"}
+SPONSOR_UPLOAD_FOLDER = os.path.join("static", "sponsors")
+ALLOWED_IMAGE_EXTENSIONS = {"jpg", "jpeg", "png", "webp", "gif"}
+
+os.makedirs(SPONSOR_UPLOAD_FOLDER, exist_ok=True)
 
 
 def checkbox_value(name):
     return name in request.form
+
+
+def bounded_int(name, default, minimum, maximum):
+    value = request.form.get(name, default, type=int)
+    if value is None:
+        value = default
+    return min(max(value, minimum), maximum)
+
+
+def choice_value(name, default, allowed):
+    value = (request.form.get(name, default) or default).strip().lower()
+    return value if value in allowed else default
+
+
+def save_sponsor_upload(field_name, existing_filename=""):
+    upload = request.files.get(field_name)
+    if not upload or not upload.filename:
+        return existing_filename or ""
+
+    original = secure_filename(upload.filename)
+    ext = original.rsplit(".", 1)[-1].lower() if "." in original else ""
+    if ext not in ALLOWED_IMAGE_EXTENSIONS:
+        return existing_filename or ""
+
+    filename = f"{field_name}_{uuid.uuid4().hex[:12]}.{ext}"
+    upload.save(os.path.join(SPONSOR_UPLOAD_FOLDER, filename))
+    return filename
 
 
 def normalize_field_name(value):
@@ -134,7 +182,7 @@ def seed_event_fields(event):
         )
 
 
-def event_payload_from_form():
+def event_payload_from_form(event=None):
     collect_photo = checkbox_value("collect_photo")
     registration_type = request.form.get("registration_type", "teacher").strip() or "teacher"
     if registration_type == "no_registration":
@@ -147,6 +195,22 @@ def event_payload_from_form():
         payment_amount = float(payment_amount_raw) if payment_amount_raw else 0
     except ValueError:
         payment_amount = 0
+
+    code_type = request.form.get("code_type", "qr").strip().lower()
+    if code_type not in {"qr", "barcode"}:
+        code_type = "qr"
+
+    code_fields = request.form.getlist("code_fields")
+    if not code_fields:
+        code_fields = ["attendance_url", "reg_id", "participant_name", "event_name"]
+
+    reg_id_prefix = normalize_field_name(
+        request.form.get("reg_id_prefix", "").strip() or "EVT"
+    ).replace("_", "").upper()[:20]
+    reg_id_next_number = request.form.get("reg_id_next_number", 1, type=int) or 1
+    reg_id_padding = request.form.get("reg_id_padding", 4, type=int) or 4
+    reg_id_next_number = max(1, reg_id_next_number)
+    reg_id_padding = min(max(1, reg_id_padding), 10)
 
     return {
         "name": request.form.get("name", "").strip(),
@@ -168,6 +232,44 @@ def event_payload_from_form():
         "payment_notes": request.form.get("payment_notes", "").strip(),
         "whatsapp_ack_enabled": checkbox_value("whatsapp_ack_enabled"),
         "whatsapp_template": request.form.get("whatsapp_template", "").strip(),
+        "whatsapp_group_enabled": checkbox_value("whatsapp_group_enabled"),
+        "whatsapp_group_link": request.form.get("whatsapp_group_link", "").strip(),
+        "acknowledgement_enabled": checkbox_value("acknowledgement_enabled"),
+        "certificate_enabled": checkbox_value("certificate_enabled"),
+        "attendance_enabled": checkbox_value("attendance_enabled"),
+        "code_type": code_type,
+        "code_fields": "\n".join(code_fields),
+        "reg_id_prefix": reg_id_prefix,
+        "reg_id_next_number": reg_id_next_number,
+        "reg_id_padding": reg_id_padding,
+        "sponsor_brand": request.form.get("sponsor_brand", "").strip(),
+        "sponsor_logo": save_sponsor_upload(
+            "sponsor_logo",
+            event.sponsor_logo if event else ""
+        ),
+        "sponsor_image": save_sponsor_upload(
+            "sponsor_image",
+            event.sponsor_image if event else ""
+        ),
+        "sponsor_logo_position": choice_value(
+            "sponsor_logo_position",
+            "left",
+            {"left", "center", "right"}
+        ),
+        "sponsor_logo_width": bounded_int("sponsor_logo_width", 160, 40, 400),
+        "sponsor_logo_height": bounded_int("sponsor_logo_height", 90, 30, 240),
+        "sponsor_banner_position": choice_value(
+            "sponsor_banner_position",
+            "right",
+            {"left", "center", "right", "full"}
+        ),
+        "sponsor_banner_width": bounded_int("sponsor_banner_width", 520, 120, 1100),
+        "sponsor_banner_height": bounded_int("sponsor_banner_height", 170, 60, 420),
+        "sponsor_image_fit": choice_value(
+            "sponsor_image_fit",
+            "contain",
+            {"contain", "cover", "fill"}
+        ),
         "qr_sharing_enabled": checkbox_value("qr_sharing_enabled"),
         "exam_enabled": checkbox_value("exam_enabled"),
         "is_active": checkbox_value("is_active"),
@@ -283,6 +385,166 @@ def recalculate_attempt_scores(attempt):
     attempt.evaluation_status = "pending_review" if pending else "evaluated"
 
 
+def online_exam_status(exam):
+    now = datetime.utcnow()
+    if exam.start_at and now < exam.start_at:
+        return "Upcoming"
+    if exam.end_at and now > exam.end_at:
+        return "Closed"
+    if exam.is_active:
+        return "Open"
+    return "Draft"
+
+
+def build_exam_dashboard(selected_event_id=None, selected_exam_id=None):
+    event_query = Event.query
+    exam_query = OnlineExam.query
+    subject_query = ExamSubject.query
+    participant_query = Participant.query
+
+    if selected_event_id:
+        event_query = event_query.filter(Event.id == selected_event_id)
+        exam_query = exam_query.filter(OnlineExam.event_id == selected_event_id)
+        subject_query = subject_query.filter(ExamSubject.event_id == selected_event_id)
+        participant_query = participant_query.filter(Participant.event_id == selected_event_id)
+
+    if selected_exam_id:
+        exam_query = exam_query.filter(OnlineExam.id == selected_exam_id)
+
+    events = event_query.all()
+    exams = exam_query.all()
+    subjects = subject_query.all()
+    exam_ids = [exam.id for exam in exams]
+
+    attempt_query = ExamAttempt.query
+    if selected_exam_id:
+        attempt_query = attempt_query.filter(ExamAttempt.exam_id == selected_exam_id)
+    elif exam_ids:
+        attempt_query = attempt_query.filter(ExamAttempt.exam_id.in_(exam_ids))
+    else:
+        attempt_query = attempt_query.filter(False)
+
+    attempts = attempt_query.order_by(ExamAttempt.submitted_at.desc()).all()
+    event_ids = [event.id for event in events]
+    exam_users = participant_query.filter(Participant.exam_username.isnot(None)).count()
+
+    active_exams = len([exam for exam in exams if exam.is_active])
+    total_questions = sum(len(exam.questions) for exam in exams)
+    passed = len([
+        attempt for attempt in attempts
+        if attempt.exam and attempt.score >= (attempt.exam.pass_mark or 0)
+    ])
+    failed = len([
+        attempt for attempt in attempts
+        if attempt.exam and attempt.score < (attempt.exam.pass_mark or 0)
+    ])
+    pending_review = len([
+        attempt for attempt in attempts
+        if attempt.evaluation_status == "pending_review"
+    ])
+    violations = sum(int(attempt.violation_count or 0) for attempt in attempts)
+    avg_score = round(
+        sum(float(attempt.score or 0) for attempt in attempts) / len(attempts),
+        2
+    ) if attempts else 0
+
+    by_event = {}
+    for event in events:
+        event_exam_ids = [exam.id for exam in event.online_exams]
+        by_event[event.name] = len([
+            attempt for attempt in attempts
+            if attempt.exam_id in event_exam_ids
+        ])
+
+    by_subject = {}
+    for attempt in attempts:
+        subject_name = (
+            attempt.exam.subject.subject_name
+            if attempt.exam and attempt.exam.subject
+            else "Not Set"
+        )
+        by_subject[subject_name] = by_subject.get(subject_name, 0) + 1
+
+    status_counts = {}
+    for exam in exams:
+        status = online_exam_status(exam)
+        status_counts[status] = status_counts.get(status, 0) + 1
+
+    return {
+        "stats": {
+            "events": len(events),
+            "exam_enabled_events": len([event for event in events if event.exam_enabled]),
+            "subjects": len(subjects),
+            "exams": len(exams),
+            "active_exams": active_exams,
+            "questions": total_questions,
+            "exam_users": exam_users,
+            "attempts": len(attempts),
+            "passed": passed,
+            "failed": failed,
+            "avg_score": avg_score,
+            "violations": violations,
+            "pending_review": pending_review,
+        },
+        "charts": {
+            "by_event": by_event,
+            "by_subject": by_subject,
+            "status_counts": status_counts,
+            "result_counts": {
+                "Passed": passed,
+                "Failed": failed,
+                "Pending Review": pending_review,
+            },
+        },
+        "recent_attempts": attempts[:12],
+    }
+
+
+def extract_registration_id_from_scan(scan_text, event_id=None):
+    value = (scan_text or "").strip()
+    if not value:
+        return ""
+
+    patterns = [
+        r"Registration\s*Id\s*:\s*([A-Za-z0-9\-]+)",
+        r"Registration\s*ID\s*:\s*([A-Za-z0-9\-]+)",
+        r"/attendance/mark/([A-Za-z0-9\-]+)",
+        r"reg_id=([A-Za-z0-9\-]+)",
+    ]
+
+    for pattern in patterns:
+        match = re.search(pattern, value, re.IGNORECASE)
+        if match:
+            return match.group(1).upper()
+
+    compact = value.strip().splitlines()[0].strip().upper()
+    if re.fullmatch(r"[A-Z0-9\-]+", compact):
+        return compact
+
+    query = Participant.query
+    if event_id:
+        query = query.filter(Participant.event_id == event_id)
+
+    for participant in query.order_by(Participant.created_at.desc()).limit(500).all():
+        if participant.reg_id and participant.reg_id.upper() in value.upper():
+            return participant.reg_id
+
+    return ""
+
+
+def mark_participant_present(participant):
+    if not participant or not participant.event or not participant.event.attendance_enabled:
+        return False
+
+    result = service_mark_attendance(
+        participant,
+        "QR",
+        str(session.get("admin") or "Admin"),
+        request.remote_addr or ""
+    )
+    return bool(result.get("ok"))
+
+
 # =====================================================
 # ADMIN DASHBOARD
 # =====================================================
@@ -337,6 +599,81 @@ def admin():
         events=events,
         selected_event_id=selected_event_id
     )
+
+
+@admin_bp.route("/admin/attendance", methods=["GET", "POST"])
+def attendance():
+
+    if "admin" not in session:
+        return redirect(url_for("routes.login"))
+
+    selected_event_id = request.values.get("event_id", type=int)
+    scan_text = request.form.get("scan_text", "")
+    message = request.args.get("message", "")
+    message_type = request.args.get("message_type", "info")
+
+    if request.method == "POST":
+        reg_id = extract_registration_id_from_scan(scan_text, selected_event_id)
+        participant = Participant.query.filter_by(reg_id=reg_id).first() if reg_id else None
+
+        if participant and selected_event_id and participant.event_id != selected_event_id:
+            participant = None
+
+        if mark_participant_present(participant):
+            message = f"{participant.teacher_name} ({participant.reg_id}) marked present."
+            message_type = "success"
+        else:
+            message = "No matching participant found, or attendance is not enabled for this event."
+            message_type = "danger"
+
+    events = Event.query.order_by(Event.created_at.desc(), Event.id.desc()).all()
+    query = Participant.query.join(Event).filter(Event.attendance_enabled == True)
+
+    if selected_event_id:
+        query = query.filter(Participant.event_id == selected_event_id)
+
+    participants = query.order_by(
+        Participant.is_present.desc(),
+        Participant.attendance_marked_at.desc(),
+        Participant.created_at.desc()
+    ).limit(200).all()
+
+    total_count = len(participants)
+    present_count = len([item for item in participants if item.is_present])
+
+    return render_template(
+        "admin/attendance.html",
+        events=events,
+        participants=participants,
+        selected_event_id=selected_event_id,
+        total_count=total_count,
+        present_count=present_count,
+        message=message,
+        message_type=message_type
+    )
+
+
+@admin_bp.route("/admin/attendance/mark/<reg_id>")
+def mark_attendance(reg_id):
+
+    if "admin" not in session:
+        return redirect(url_for("routes.login"))
+
+    participant = Participant.query.filter_by(reg_id=reg_id.upper()).first()
+
+    if mark_participant_present(participant):
+        return redirect(url_for(
+            "attendance.dashboard",
+            event_id=participant.event_id,
+            message=f"{participant.teacher_name} ({participant.reg_id}) marked present.",
+            message_type="success"
+        ))
+
+    return redirect(url_for(
+        "attendance.dashboard",
+        message="Attendance is not enabled or participant was not found.",
+        message_type="danger"
+    ))
 
 
 @admin_bp.route("/admin/participants/<int:id>/exam-credentials", methods=["POST"])
@@ -534,7 +871,8 @@ def events():
     return render_template(
         "admin/events.html",
         events=events,
-        registration_type_choices=REGISTRATION_TYPE_CHOICES
+        registration_type_choices=REGISTRATION_TYPE_CHOICES,
+        code_field_choices=CODE_FIELD_CHOICES
     )
 
 
@@ -550,7 +888,7 @@ def edit_event(id):
         db.session.commit()
 
     if request.method == "POST":
-        payload = event_payload_from_form()
+        payload = event_payload_from_form(event)
 
         existing = Event.query.filter(
             Event.slug == payload["slug"],
@@ -569,6 +907,7 @@ def edit_event(id):
         registration_type_choices=REGISTRATION_TYPE_CHOICES,
         field_type_choices=FIELD_TYPE_CHOICES,
         data_type_choices=DATA_TYPE_CHOICES,
+        code_field_choices=CODE_FIELD_CHOICES,
         system_field_choices=SYSTEM_FIELD_CHOICES
     )
 
@@ -1088,8 +1427,25 @@ def export():
     if not session.get("admin"):
         return redirect(url_for("routes.login"))
 
-    participants = Participant.query.order_by(
-        Participant.id
+    events = Event.query.order_by(Event.created_at.desc(), Event.id.desc()).all()
+    selected_event_ids = request.args.getlist("event_id", type=int)
+    download = request.args.get("download") == "1"
+
+    if not download:
+        return render_template(
+            "admin/export.html",
+            events=events,
+            selected_event_ids=selected_event_ids
+        )
+
+    query = Participant.query
+
+    if selected_event_ids:
+        query = query.filter(Participant.event_id.in_(selected_event_ids))
+
+    participants = query.order_by(
+        Participant.event_id.asc(),
+        Participant.id.asc()
     ).all()
 
     data = []
@@ -1125,13 +1481,24 @@ def export():
 
     df = pd.DataFrame(data)
 
-    filename = "participants.xlsx"
+    if len(selected_event_ids) == 1:
+        event = Event.query.get(selected_event_ids[0])
+        suffix = event.slug if event else "selected-event"
+        filename = f"participants_{suffix}.xlsx"
+    elif selected_event_ids:
+        filename = "participants_selected_events.xlsx"
+    else:
+        filename = "participants_all_events.xlsx"
 
-    df.to_excel(filename, index=False)
+    output = BytesIO()
+    with pd.ExcelWriter(output, engine="openpyxl") as writer:
+        df.to_excel(writer, index=False, sheet_name="Participants")
+    output.seek(0)
 
     return send_file(
-        filename,
-        as_attachment=True
+        output,
+        as_attachment=True,
+        download_name=filename
     )
 
 # =====================================================

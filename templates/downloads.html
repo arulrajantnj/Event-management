@@ -94,6 +94,7 @@ Download Certificate
     <div class="border rounded p-3 h-100">
         <h6>Available Downloads</h6>
 
+        {% if participant.event and participant.event.certificate_enabled %}
         <form method="POST" action="{{ url_for('routes.download_certificate_secure') }}" class="mb-2">
             <input type="hidden" name="reg_id" value="{{ participant.reg_id }}">
             <input type="hidden" name="mobile" value="{{ participant.mobile }}">
@@ -102,6 +103,11 @@ Download Certificate
                 Download Certificate
             </button>
         </form>
+        {% else %}
+        <div class="alert alert-info mb-0">
+            Certificate download is not enabled for this event.
+        </div>
+        {% endif %}
 
     </div>
 </div>

@@ -1,0 +1,65 @@
+.attendance-stat{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    min-height:110px;
+    padding:18px;
+    background:#fff;
+    border-radius:12px;
+    box-shadow:0 5px 15px rgba(0,0,0,.08);
+}
+
+.attendance-stat i{
+    font-size:34px;
+}
+
+.attendance-chart{
+    width:100%;
+    min-height:280px;
+    padding:16px;
+    background:#fff;
+    border-radius:12px;
+    box-shadow:0 5px 15px rgba(0,0,0,.08);
+}
+
+.qr-reader{
+    width:100%;
+    min-height:320px;
+    overflow:hidden;
+    border:2px dashed #198754;
+    border-radius:12px;
+    background:#f8fff9;
+}
+
+.attendance-photo{
+    width:54px;
+    height:64px;
+    object-fit:cover;
+    border-radius:8px;
+    border:1px solid #ddd;
+}
+
+.attendance-person-photo{
+    width:120px;
+    height:140px;
+    object-fit:cover;
+    border-radius:12px;
+    border:3px solid #fff;
+    box-shadow:0 8px 22px rgba(0,0,0,.18);
+}
+
+.attendance-result.success{
+    border-left:6px solid #198754;
+}
+
+.attendance-result.warning{
+    border-left:6px solid #ffc107;
+}
+
+.attendance-result.danger{
+    border-left:6px solid #dc3545;
+}
+
+.manual-result-card{
+    height:100%;
+}

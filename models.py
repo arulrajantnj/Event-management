@@ -118,6 +118,108 @@ class Event(db.Model):
         db.Text
     )
 
+    whatsapp_group_enabled = db.Column(
+        db.Boolean,
+        default=False,
+        nullable=False
+    )
+
+    whatsapp_group_link = db.Column(
+        db.String(500)
+    )
+
+    acknowledgement_enabled = db.Column(
+        db.Boolean,
+        default=True,
+        nullable=False
+    )
+
+    certificate_enabled = db.Column(
+        db.Boolean,
+        default=True,
+        nullable=False
+    )
+
+    attendance_enabled = db.Column(
+        db.Boolean,
+        default=False,
+        nullable=False
+    )
+
+    code_type = db.Column(
+        db.String(20),
+        default="qr",
+        nullable=False
+    )
+
+    code_fields = db.Column(
+        db.Text
+    )
+
+    reg_id_prefix = db.Column(
+        db.String(20),
+        default="EVT"
+    )
+
+    reg_id_next_number = db.Column(
+        db.Integer,
+        default=1,
+        nullable=False
+    )
+
+    reg_id_padding = db.Column(
+        db.Integer,
+        default=4,
+        nullable=False
+    )
+
+    sponsor_brand = db.Column(
+        db.String(150)
+    )
+
+    sponsor_logo = db.Column(
+        db.String(250)
+    )
+
+    sponsor_image = db.Column(
+        db.String(250)
+    )
+
+    sponsor_logo_position = db.Column(
+        db.String(20),
+        default="left"
+    )
+
+    sponsor_logo_width = db.Column(
+        db.Integer,
+        default=160
+    )
+
+    sponsor_logo_height = db.Column(
+        db.Integer,
+        default=90
+    )
+
+    sponsor_banner_position = db.Column(
+        db.String(20),
+        default="right"
+    )
+
+    sponsor_banner_width = db.Column(
+        db.Integer,
+        default=520
+    )
+
+    sponsor_banner_height = db.Column(
+        db.Integer,
+        default=170
+    )
+
+    sponsor_image_fit = db.Column(
+        db.String(20),
+        default="contain"
+    )
+
     qr_sharing_enabled = db.Column(
         db.Boolean,
         default=True,
@@ -144,6 +246,20 @@ class Event(db.Model):
     participants = db.relationship(
         "Participant",
         back_populates="event",
+        lazy=True
+    )
+
+    attendance_records = db.relationship(
+        "Attendance",
+        back_populates="event",
+        cascade="all, delete-orphan",
+        lazy=True
+    )
+
+    attendance_logs = db.relationship(
+        "AttendanceLog",
+        back_populates="event",
+        cascade="all, delete-orphan",
         lazy=True
     )
 
@@ -237,6 +353,16 @@ class Participant(db.Model):
         default=0
     )
 
+    is_present = db.Column(
+        db.Boolean,
+        default=False,
+        nullable=False
+    )
+
+    attendance_marked_at = db.Column(
+        db.DateTime
+    )
+
     last_download = db.Column(
         db.DateTime
     )
@@ -270,6 +396,19 @@ class Participant(db.Model):
         back_populates="participants"
     )
 
+    attendance_records = db.relationship(
+        "Attendance",
+        back_populates="participant",
+        cascade="all, delete-orphan",
+        lazy=True
+    )
+
+    attendance_logs = db.relationship(
+        "AttendanceLog",
+        back_populates="participant",
+        lazy=True
+    )
+
     def extra_data_map(self):
         if not self.extra_data:
             return {}
@@ -300,6 +439,147 @@ class Participant(db.Model):
                 })
 
         return items
+
+
+# ==========================================================
+# ATTENDANCE
+# ==========================================================
+class Attendance(db.Model):
+
+    __tablename__ = "attendance"
+    __table_args__ = (
+        db.UniqueConstraint(
+            "participant_id",
+            "attendance_date",
+            name="uq_attendance_participant_date"
+        ),
+        db.Index("idx_attendance_event_date", "event_id", "attendance_date"),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+
+    participant_id = db.Column(
+        db.Integer,
+        db.ForeignKey("participants.id"),
+        nullable=False
+    )
+
+    event_id = db.Column(
+        db.Integer,
+        db.ForeignKey("events.id"),
+        nullable=False
+    )
+
+    attendance_date = db.Column(db.Date, nullable=False)
+
+    attendance_time = db.Column(db.DateTime, nullable=False)
+
+    status = db.Column(db.String(30), default="Present", nullable=False)
+
+    method = db.Column(db.String(20), default="QR", nullable=False)
+
+    remarks = db.Column(db.Text)
+
+    marked_by = db.Column(db.String(80))
+
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    updated_at = db.Column(
+        db.DateTime,
+        default=datetime.utcnow,
+        onupdate=datetime.utcnow
+    )
+
+    participant = db.relationship(
+        "Participant",
+        back_populates="attendance_records"
+    )
+
+    event = db.relationship(
+        "Event",
+        back_populates="attendance_records"
+    )
+
+
+class AttendanceLog(db.Model):
+
+    __tablename__ = "attendance_logs"
+    __table_args__ = (
+        db.Index("idx_attendance_logs_event_created", "event_id", "created_at"),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+
+    participant_id = db.Column(
+        db.Integer,
+        db.ForeignKey("participants.id")
+    )
+
+    event_id = db.Column(
+        db.Integer,
+        db.ForeignKey("events.id")
+    )
+
+    action = db.Column(db.String(40), nullable=False)
+
+    status = db.Column(db.String(30))
+
+    method = db.Column(db.String(20))
+
+    scan_text = db.Column(db.Text)
+
+    message = db.Column(db.String(255))
+
+    admin_user = db.Column(db.String(80))
+
+    ip_address = db.Column(db.String(45))
+
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    participant = db.relationship(
+        "Participant",
+        back_populates="attendance_logs"
+    )
+
+    event = db.relationship(
+        "Event",
+        back_populates="attendance_logs"
+    )
+
+
+class ScannerUser(db.Model):
+
+    __tablename__ = "scanner_users"
+    __table_args__ = (
+        db.UniqueConstraint("username", name="uq_scanner_users_username"),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+
+    name = db.Column(db.String(120), nullable=False)
+
+    username = db.Column(db.String(80), nullable=False)
+
+    password_hash = db.Column(db.String(255), nullable=False)
+
+    event_id = db.Column(
+        db.Integer,
+        db.ForeignKey("events.id")
+    )
+
+    is_approved = db.Column(db.Boolean, default=False, nullable=False)
+
+    is_active = db.Column(db.Boolean, default=True, nullable=False)
+
+    approved_by = db.Column(db.String(80))
+
+    approved_at = db.Column(db.DateTime)
+
+    last_login_at = db.Column(db.DateTime)
+
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    event = db.relationship("Event")
 
 
 # ==========================================================

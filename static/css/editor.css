@@ -3,20 +3,61 @@ html, body {
     overflow: hidden;
     font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
     height: 100%;
+    width: 100%;
     margin: 0;
     padding: 0;
 }
 
-/* Hide scrollbar while keeping functionality */
-html::-webkit-scrollbar,
-body::-webkit-scrollbar {
-    width: 0;
-    height: 0;
+/* Ensure main container fits viewport */
+.container-fluid {
+    height: 100vh;
+    width: 100vw;
+    overflow: hidden;
+    padding: 0;
+    margin: 0;
 }
 
-html, body {
-    -ms-overflow-style: none;  /* IE and Edge */
-    scrollbar-width: none;     /* Firefox */
+.row {
+    height: 100%;
+    width: 100%;
+    overflow: hidden;
+    margin: 0;
+}
+
+.col-md-2,
+.col-md-8 {
+    height: 100%;
+    overflow: hidden;
+    padding: 0 !important;
+}
+
+/* Left panel scrollable */
+.col-md-2 {
+    overflow-y: auto;
+    padding: 15px !important;
+}
+
+.col-md-2::-webkit-scrollbar {
+    width: 0;
+}
+
+.col-md-2 {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+}
+
+/* Center panel - flex container */
+.col-md-8 {
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    align-items: center;
+    padding: 0 !important;
+}
+
+/* Hide the heading in center panel to save space */
+.col-md-8 > h3 {
+    display: none;
 }
 
 /* ================= LEFT PANEL ================= */
@@ -49,15 +90,44 @@ html, body {
 
 /* ================= CANVAS ================= */
 
+.certificate-scroll-area {
+    width: 100%;
+    height: 100vh;
+    overflow: auto;
+    padding: 56px 36px 36px;
+    background: #e5ebf3;
+}
+
+.certificate-scroll-area::-webkit-scrollbar {
+    width: 14px;
+    height: 14px;
+}
+
+.certificate-scroll-area::-webkit-scrollbar-track {
+    background: #d7dee8;
+}
+
+.certificate-scroll-area::-webkit-scrollbar-thumb {
+    background: #7b8798;
+    border: 3px solid #d7dee8;
+    border-radius: 10px;
+}
+
+.certificate-scroll-area::-webkit-scrollbar-thumb:hover {
+    background: #4b5563;
+}
+
 #certificateCanvas {
-    width: 1200px;
-    height: 850px;
-    margin: auto;
+    width: 1100px;
+    height: 780px;
+    max-width: 1200px;
     position: relative;
     border: 2px solid #999;
     background: #fff;
-    overflow: hidden;
+    overflow: hidden !important;
     box-shadow: 0 10px 30px rgba(0,0,0,.15);
+    flex-shrink: 0;
+    margin: 0 auto 40px;
 }
 
 /* Background image */

@@ -29,10 +29,10 @@
 /* fallback safety styles */
 #certificateCanvas {
     position: relative;
-    width: 100%;
+    width: 1100px;
     max-width: 1100px;
     height: 700px;
-    margin: auto;
+    margin: 24px auto;
     border: 2px solid #ddd;
     overflow: hidden;
     background: #fff;
@@ -152,6 +152,7 @@ Teacher Photo
 
 <h3 class="mb-3">Certificate Designer</h3>
 
+<div class="certificate-scroll-area">
 <div id="certificateCanvas"
      data-template="{{ template.id }}">
 
@@ -165,6 +166,7 @@ onerror="this.insertAdjacentHTML('afterend', '<div class=&quot;template-error&qu
 
 <!-- Dynamic fields will be injected here by JS -->
 
+</div>
 </div>
 
 </div>

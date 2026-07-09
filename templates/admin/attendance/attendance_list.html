@@ -1,0 +1,70 @@
+{% extends "admin/admin_base.html" %}
+
+{% block title %}{{ "Absent List" if mode == "absent" else "Attendance List" }}{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="https://cdn.datatables.net/2.1.8/css/dataTables.bootstrap5.css">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/attendance.css') }}">
+{% endblock %}
+
+{% block content %}
+{% include "admin/attendance/_nav.html" %}
+
+<div class="d-flex flex-wrap gap-2 mb-3">
+    <a class="btn btn-success btn-sm" href="{{ url_for('attendance.export', file_type='xlsx', event_id=selected_event_id, mode=mode) }}"><i class="fa-solid fa-file-excel"></i> Export Excel</a>
+    <a class="btn btn-danger btn-sm" href="{{ url_for('attendance.export', file_type='pdf', event_id=selected_event_id, mode=mode) }}"><i class="fa-solid fa-file-pdf"></i> Export PDF</a>
+    <a class="btn btn-secondary btn-sm" href="{{ url_for('attendance.export', file_type='csv', event_id=selected_event_id, mode=mode) }}"><i class="fa-solid fa-file-csv"></i> Export CSV</a>
+</div>
+
+<div class="card">
+    <div class="card-header bg-primary text-white">{{ "Absent List" if mode == "absent" else "Attendance List" }}</div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table id="attendanceTable" class="table table-striped table-bordered align-middle">
+                <thead>
+                    <tr>
+                        <th>Photo</th>
+                        <th>Registration Number</th>
+                        <th>Teacher Name</th>
+                        <th>School</th>
+                        <th>Subject</th>
+                        <th>Attendance Time</th>
+                        <th>Method</th>
+                        <th>Status</th>
+                        <th>Marked By</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in rows %}
+                    {% set participant = row if mode == "absent" else row.participant %}
+                    <tr>
+                        <td>
+                            {% if participant.photo %}
+                            <img class="attendance-photo" src="{{ '/' ~ participant.photo if participant.photo.startswith('static/') else url_for('static', filename='uploads/' ~ participant.photo) }}">
+                            {% else %}
+                            <span class="text-muted">No Photo</span>
+                            {% endif %}
+                        </td>
+                        <td><code>{{ participant.reg_id }}</code></td>
+                        <td>{{ participant.teacher_name }}</td>
+                        <td>{{ participant.school_name }}</td>
+                        <td>{{ participant.subject }}</td>
+                        <td>{{ row.attendance_time.strftime("%d-%m-%Y %H:%M") if mode != "absent" else "" }}</td>
+                        <td>{{ row.method if mode != "absent" else "" }}</td>
+                        <td><span class="badge {{ 'bg-warning text-dark' if mode == 'absent' else 'bg-success' }}">{{ "Absent" if mode == "absent" else row.status }}</span></td>
+                        <td>{{ row.marked_by if mode != "absent" else "" }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdn.datatables.net/2.1.8/js/dataTables.js"></script>
+<script src="https://cdn.datatables.net/2.1.8/js/dataTables.bootstrap5.js"></script>
+<script src="{{ url_for('static', filename='js/attendance.js') }}"></script>
+{% endblock %}

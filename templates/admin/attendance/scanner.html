@@ -1,0 +1,56 @@
+{% extends "admin/admin_base.html" %}
+
+{% block title %}Live QR Scanner{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/attendance.css') }}">
+{% endblock %}
+
+{% block content %}
+{% include "admin/attendance/_nav.html" %}
+
+<div class="row g-4">
+    <div class="col-lg-6">
+        <div class="card">
+            <div class="card-header bg-success text-white">Live QR Scanner</div>
+            <div class="card-body">
+                <div id="qr-reader" class="qr-reader"></div>
+                <div class="row g-2 mt-3">
+                    <div class="col-md-6">
+                        <select id="cameraSelect" class="form-select"></select>
+                    </div>
+                    <div class="col-md-6">
+                        <input id="scanDelay" type="number" class="form-control" value="1500" min="500" step="100">
+                    </div>
+                    <div class="col-12 d-flex flex-wrap gap-2">
+                        <button id="startScanner" class="btn btn-success"><i class="fa-solid fa-camera"></i> Start</button>
+                        <button id="stopScanner" class="btn btn-secondary"><i class="fa-solid fa-stop"></i> Stop</button>
+                        <button id="torchToggle" class="btn btn-warning"><i class="fa-solid fa-bolt"></i> Torch</button>
+                    </div>
+                </div>
+                <div class="form-check form-switch mt-3">
+                    <input class="form-check-input" type="checkbox" id="soundEnabled" checked>
+                    <label class="form-check-label" for="soundEnabled">Enable sound</label>
+                </div>
+                <div class="form-check form-switch">
+                    <input class="form-check-input" type="checkbox" id="vibrationEnabled" checked>
+                    <label class="form-check-label" for="vibrationEnabled">Enable vibration</label>
+                </div>
+                <input type="hidden" id="attendanceEventId" value="{{ selected_event_id or '' }}">
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-6">
+        <div id="scanResult" class="attendance-result card">
+            <div class="card-body text-center text-muted py-5">
+                Scan a participant QR code to mark attendance.
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://unpkg.com/html5-qrcode"></script>
+<script src="{{ url_for('static', filename='js/attendance.js') }}"></script>
+{% endblock %}

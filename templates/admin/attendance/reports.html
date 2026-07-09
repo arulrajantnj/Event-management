@@ -1,0 +1,33 @@
+{% extends "admin/admin_base.html" %}
+
+{% block title %}{{ report_title }}{% endblock %}
+
+{% block content %}
+{% include "admin/attendance/_nav.html" %}
+
+<div class="card">
+    <div class="card-header bg-danger text-white">{{ report_title }}</div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-striped mb-0">
+                <thead><tr><th>Date/Time</th><th>Reg No</th><th>Name</th><th>Method</th><th>Admin</th><th>IP</th><th>Message</th></tr></thead>
+                <tbody>
+                    {% for log in logs %}
+                    <tr>
+                        <td>{{ log.created_at.strftime("%d-%m-%Y %H:%M:%S") }}</td>
+                        <td>{{ log.participant.reg_id if log.participant else "" }}</td>
+                        <td>{{ log.participant.teacher_name if log.participant else "" }}</td>
+                        <td>{{ log.method }}</td>
+                        <td>{{ log.admin_user }}</td>
+                        <td>{{ log.ip_address }}</td>
+                        <td>{{ log.message }}</td>
+                    </tr>
+                    {% else %}
+                    <tr><td colspan="7" class="text-center text-muted py-4">No duplicate scans logged.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

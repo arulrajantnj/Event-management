@@ -1,0 +1,45 @@
+{% extends "admin/admin_base.html" %}
+
+{% block title %}Attendance Settings{% endblock %}
+
+{% block content %}
+{% include "admin/attendance/_nav.html" %}
+
+<div class="card">
+    <div class="card-header bg-secondary text-white">QR Scanner Settings</div>
+    <div class="card-body">
+        <div class="row g-3">
+            <div class="col-md-6">
+                <label class="form-label">Preferred Camera</label>
+                <select class="form-select">
+                    <option>Rear camera</option>
+                    <option>Front camera</option>
+                </select>
+            </div>
+            <div class="col-md-6">
+                <label class="form-label">Scan Delay</label>
+                <input class="form-control" type="number" value="1500">
+            </div>
+            <div class="col-md-3 form-check form-switch ms-3">
+                <input class="form-check-input" type="checkbox" checked>
+                <label class="form-check-label">Continuous Scan</label>
+            </div>
+            <div class="col-md-3 form-check form-switch">
+                <input class="form-check-input" type="checkbox" checked>
+                <label class="form-check-label">Enable Sound</label>
+            </div>
+            <div class="col-md-3 form-check form-switch">
+                <input class="form-check-input" type="checkbox" checked>
+                <label class="form-check-label">Enable Vibration</label>
+            </div>
+            <div class="col-md-3 form-check form-switch">
+                <input class="form-check-input" type="checkbox" checked>
+                <label class="form-check-label">Auto Focus</label>
+            </div>
+        </div>
+        <div class="alert alert-info mt-3 mb-0">
+            Camera capabilities such as torch and auto focus depend on the browser and device.
+        </div>
+    </div>
+</div>
+{% endblock %}
