@@ -2,6 +2,7 @@ from flask import Flask
 import os
 from urllib.parse import quote_plus
 
+from dotenv import load_dotenv
 from flask_migrate import Migrate
 
 from models import db, Block, Event, EventField
@@ -13,6 +14,8 @@ from layout_editor import layout_bp
 # ==========================
 # Create Flask App
 # ==========================
+
+load_dotenv()
 
 app = Flask(__name__)
 
