@@ -1,0 +1,9 @@
+Single-database configuration for Flask-Migrate.
+
+Run migrations with:
+
+    flask --app app db upgrade
+
+Create new revisions with:
+
+    flask --app app db migrate -m "message"

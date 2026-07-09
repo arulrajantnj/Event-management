@@ -1,8 +1,10 @@
 from flask import Flask
 import os
-import sqlite3
+from urllib.parse import quote_plus
 
-from models import db, Event, EventField, ExamAnswer, ExamAttempt, ExamQuestion, ExamSubject, OnlineExam
+from flask_migrate import Migrate
+
+from models import db, Block, Event, EventField
 
 from routes import routes as routes_bp
 from admin_routes import admin_bp
@@ -21,9 +23,36 @@ app.secret_key = "event_management_secret_key"
 # ==========================
 
 os.makedirs(app.instance_path, exist_ok=True)
-db_path = os.path.abspath(os.path.join(app.instance_path, "event.db"))
-app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///" + db_path.replace('\\', '/')
+
+
+def database_uri_from_env():
+    database_url = os.getenv("DATABASE_URL")
+    if database_url:
+        if database_url.startswith("mysql://"):
+            return database_url.replace("mysql://", "mysql+pymysql://", 1)
+        return database_url
+
+    mysql_user = os.getenv("MYSQL_USER", "root")
+    mysql_password = quote_plus(os.getenv("MYSQL_PASSWORD", ""))
+    mysql_host = os.getenv("MYSQL_HOST", "localhost")
+    mysql_port = os.getenv("MYSQL_PORT", "3306")
+    mysql_database = os.getenv("MYSQL_DATABASE", "event_management")
+    credentials = mysql_user
+    if mysql_password:
+        credentials = f"{credentials}:{mysql_password}"
+
+    return (
+        f"mysql+pymysql://{credentials}@{mysql_host}:{mysql_port}/"
+        f"{mysql_database}?charset=utf8mb4"
+    )
+
+
+app.config["SQLALCHEMY_DATABASE_URI"] = database_uri_from_env()
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
+    "pool_pre_ping": True,
+    "pool_recycle": 280,
+}
 
 # ==========================
 # Upload Folder
@@ -43,6 +72,7 @@ os.makedirs("qrcodes", exist_ok=True)
 # ==========================
 
 db.init_app(app)
+migrate = Migrate(app, db)
 
 
 # ==========================
@@ -281,372 +311,38 @@ def seed_default_event_fields():
         db.session.commit()
 
 
-def ensure_event_schema():
-    db_path = os.path.join(app.instance_path, "event.db")
-
-    if not os.path.exists(db_path):
-        return
-
-    conn = sqlite3.connect(db_path)
-    cursor = conn.cursor()
-    cursor.execute("PRAGMA table_info(events)")
-    existing_columns = {row[1] for row in cursor.fetchall()}
-
-    required_columns = {
-        "registration_type": "registration_type VARCHAR(30) DEFAULT 'teacher'",
-        "collect_photo": "collect_photo BOOLEAN DEFAULT 1",
-        "collect_email": "collect_email BOOLEAN DEFAULT 1",
-        "collect_designation": "collect_designation BOOLEAN DEFAULT 1",
-        "collect_subject": "collect_subject BOOLEAN DEFAULT 1",
-        "collect_school_name": "collect_school_name BOOLEAN DEFAULT 1",
-        "collect_school_area": "collect_school_area BOOLEAN DEFAULT 1",
-        "collect_block": "collect_block BOOLEAN DEFAULT 1",
-        "marquee_message": "marquee_message VARCHAR(255)",
-        "payment_enabled": "payment_enabled BOOLEAN DEFAULT 0",
-        "payment_amount": "payment_amount FLOAT DEFAULT 0",
-        "payment_link": "payment_link VARCHAR(500)",
-        "payment_notes": "payment_notes TEXT",
-        "whatsapp_ack_enabled": "whatsapp_ack_enabled BOOLEAN DEFAULT 0",
-        "whatsapp_template": "whatsapp_template TEXT",
-        "qr_sharing_enabled": "qr_sharing_enabled BOOLEAN DEFAULT 1",
-        "exam_enabled": "exam_enabled BOOLEAN DEFAULT 0",
-    }
-
-    for name, ddl in required_columns.items():
-        if name not in existing_columns:
-            cursor.execute(f"ALTER TABLE events ADD COLUMN {ddl}")
-
-    conn.commit()
-    conn.close()
-
-
-def ensure_exam_schema():
-    db_path = os.path.join(app.instance_path, "event.db")
-
-    if not os.path.exists(db_path):
-        return
-
-    conn = sqlite3.connect(db_path)
-    cursor = conn.cursor()
-
-    table_columns = {}
-    for table_name in ("online_exams", "exam_questions", "exam_attempts"):
-        cursor.execute(f"PRAGMA table_info({table_name})")
-        table_columns[table_name] = {row[1] for row in cursor.fetchall()}
-
-    online_exam_columns = {
-        "start_at": "start_at DATETIME",
-        "end_at": "end_at DATETIME",
-        "negative_marks": "negative_marks FLOAT DEFAULT 0",
-        "tab_switch_limit": "tab_switch_limit INTEGER DEFAULT 3",
-        "auto_submit_on_violation": "auto_submit_on_violation BOOLEAN DEFAULT 1",
-    }
-
-    for name, ddl in online_exam_columns.items():
-        if name not in table_columns.get("online_exams", set()):
-            cursor.execute(f"ALTER TABLE online_exams ADD COLUMN {ddl}")
-
-    question_columns = {
-        "question_type": "question_type VARCHAR(20) DEFAULT 'mcq'",
-        "model_answer": "model_answer TEXT",
-    }
-
-    for name, ddl in question_columns.items():
-        if name not in table_columns.get("exam_questions", set()):
-            cursor.execute(f"ALTER TABLE exam_questions ADD COLUMN {ddl}")
-
-    attempt_columns = {
-        "started_at": "started_at DATETIME",
-        "evaluation_status": "evaluation_status VARCHAR(30) DEFAULT 'auto_scored'",
-        "violation_count": "violation_count INTEGER DEFAULT 0",
-    }
-
-    for name, ddl in attempt_columns.items():
-        if name not in table_columns.get("exam_attempts", set()):
-            cursor.execute(f"ALTER TABLE exam_attempts ADD COLUMN {ddl}")
-
-    cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='exam_answers'")
-    if not cursor.fetchone():
-        cursor.execute(
-            """
-            CREATE TABLE exam_answers (
-                id INTEGER NOT NULL PRIMARY KEY,
-                attempt_id INTEGER NOT NULL,
-                question_id INTEGER NOT NULL,
-                selected_option VARCHAR(1),
-                text_answer TEXT,
-                is_correct BOOLEAN,
-                auto_score FLOAT DEFAULT 0 NOT NULL,
-                manual_score FLOAT,
-                created_at DATETIME,
-                FOREIGN KEY(attempt_id) REFERENCES exam_attempts (id),
-                FOREIGN KEY(question_id) REFERENCES exam_questions (id)
-            )
-            """
-        )
-        cursor.execute(
-            "CREATE INDEX IF NOT EXISTS idx_exam_answers_attempt_id "
-            "ON exam_answers (attempt_id)"
-        )
-        cursor.execute(
-            "CREATE INDEX IF NOT EXISTS idx_exam_answers_question_id "
-            "ON exam_answers (question_id)"
-        )
-
-    conn.commit()
-    conn.close()
-
-
-def ensure_participant_schema():
-    db_path = os.path.join(app.instance_path, "event.db")
-
-    if not os.path.exists(db_path):
-        return
-
-    conn = sqlite3.connect(db_path)
-    cursor = conn.cursor()
-    cursor.execute("PRAGMA table_info(participants)")
-    existing_columns = {row[1] for row in cursor.fetchall()}
-
-    cursor.execute(
-        "SELECT sql FROM sqlite_master WHERE type='table' AND name='participants'"
-    )
-    row = cursor.fetchone()
-    table_sql = row[0] if row and row[0] else ""
-
-    needs_rebuild = (
-        "event_id" not in existing_columns
-        or "UNIQUE (mobile)" in table_sql
-        or "photo_with_mp" in existing_columns
-        or "ai_status" in existing_columns
-        or "ai_photo" in existing_columns
-        or "ai_generated" in existing_columns
-    )
-
-    if needs_rebuild:
-        cursor.execute(
-            "SELECT id FROM events WHERE is_active = 1 ORDER BY id LIMIT 1"
-        )
-        event_row = cursor.fetchone()
-        if not event_row:
-            cursor.execute(
-                "SELECT id FROM events ORDER BY id LIMIT 1"
-            )
-            event_row = cursor.fetchone()
-
-        default_event_id = event_row[0] if event_row else 1
-        event_expr = (
-            f"COALESCE(event_id, {default_event_id})"
-            if "event_id" in existing_columns
-            else str(default_event_id)
-        )
-        extra_data_expr = (
-            "extra_data"
-            if "extra_data" in existing_columns
-            else "NULL"
-        )
-        exam_username_expr = (
-            "exam_username"
-            if "exam_username" in existing_columns
-            else "NULL"
-        )
-        exam_password_hash_expr = (
-            "exam_password_hash"
-            if "exam_password_hash" in existing_columns
-            else "NULL"
-        )
-
-        cursor.execute("PRAGMA foreign_keys = OFF")
-        cursor.execute(
-            """
-            CREATE TABLE participants_new (
-                id INTEGER NOT NULL PRIMARY KEY,
-                reg_id VARCHAR(30) NOT NULL UNIQUE,
-                event_id INTEGER NOT NULL,
-                salutation VARCHAR(20),
-                teacher_name VARCHAR(150) NOT NULL,
-                mobile VARCHAR(10) NOT NULL,
-                email VARCHAR(120) NOT NULL,
-                designation VARCHAR(100) NOT NULL,
-                subject VARCHAR(100) NOT NULL,
-                school_name VARCHAR(200) NOT NULL,
-                school_area VARCHAR(150) NOT NULL,
-                block VARCHAR(100) NOT NULL,
-                photo VARCHAR(250),
-                extra_data TEXT,
-                certificate_pdf VARCHAR(250),
-                qr_code VARCHAR(250),
-                download_count INTEGER DEFAULT 0,
-                last_download DATETIME,
-                certificate_generated BOOLEAN DEFAULT 0,
-                exam_username VARCHAR(80),
-                exam_password_hash VARCHAR(255),
-                created_at DATETIME,
-                FOREIGN KEY(event_id) REFERENCES events (id)
-            )
-            """
-        )
-        cursor.execute(
-            f"""
-            INSERT INTO participants_new (
-                id,
-                reg_id,
-                event_id,
-                salutation,
-                teacher_name,
-                mobile,
-                email,
-                designation,
-                subject,
-                school_name,
-                school_area,
-                block,
-                photo,
-                extra_data,
-                certificate_pdf,
-                qr_code,
-                download_count,
-                last_download,
-                certificate_generated,
-                exam_username,
-                exam_password_hash,
-                created_at
-            )
-            SELECT
-                id,
-                reg_id,
-                {event_expr},
-                salutation,
-                teacher_name,
-                mobile,
-                email,
-                designation,
-                subject,
-                school_name,
-                school_area,
-                block,
-                photo,
-                {extra_data_expr},
-                certificate_pdf,
-                qr_code,
-                COALESCE(download_count, 0),
-                last_download,
-                COALESCE(certificate_generated, 0),
-                {exam_username_expr},
-                {exam_password_hash_expr},
-                created_at
-            FROM participants
-            """
-        )
-        cursor.execute("DROP TABLE participants")
-        cursor.execute("ALTER TABLE participants_new RENAME TO participants")
-        cursor.execute(
-            "CREATE UNIQUE INDEX IF NOT EXISTS idx_participants_reg_id_unique "
-            "ON participants (reg_id)"
-        )
-        cursor.execute(
-            "CREATE UNIQUE INDEX IF NOT EXISTS idx_participants_event_mobile_unique "
-            "ON participants (event_id, mobile)"
-        )
-        cursor.execute(
-            "CREATE INDEX IF NOT EXISTS idx_participants_event_id "
-            "ON participants (event_id)"
-        )
-        cursor.execute(
-            "CREATE UNIQUE INDEX IF NOT EXISTS idx_participants_exam_username_unique "
-            "ON participants (exam_username)"
-        )
-        cursor.execute("PRAGMA foreign_keys = ON")
-    else:
-        required_columns = {
-            "event_id": "event_id INTEGER",
-            "extra_data": "extra_data TEXT",
-            "certificate_pdf": "certificate_pdf VARCHAR(250)",
-            "qr_code": "qr_code VARCHAR(250)",
-            "download_count": "download_count INTEGER DEFAULT 0",
-            "last_download": "last_download DATETIME",
-            "certificate_generated": "certificate_generated BOOLEAN DEFAULT 0",
-            "exam_username": "exam_username VARCHAR(80)",
-            "exam_password_hash": "exam_password_hash VARCHAR(255)",
-        }
-
-        for name, ddl in required_columns.items():
-            if name not in existing_columns:
-                cursor.execute(f"ALTER TABLE participants ADD COLUMN {ddl}")
-
-        cursor.execute(
-            "CREATE UNIQUE INDEX IF NOT EXISTS idx_participants_reg_id_unique "
-            "ON participants (reg_id)"
-        )
-        cursor.execute(
-            "CREATE UNIQUE INDEX IF NOT EXISTS idx_participants_event_mobile_unique "
-            "ON participants (event_id, mobile)"
-        )
-        cursor.execute(
-            "CREATE INDEX IF NOT EXISTS idx_participants_event_id "
-            "ON participants (event_id)"
-        )
-        cursor.execute(
-            "CREATE UNIQUE INDEX IF NOT EXISTS idx_participants_exam_username_unique "
-            "ON participants (exam_username)"
-        )
-
-    conn.commit()
-    conn.close()
-
-
 def init_database():
     try:
         with app.app_context():
-            db.create_all()
-            ensure_event_schema()
-            ensure_exam_schema()
             seed_default_events()
-            ensure_participant_schema()
             seed_default_event_fields()
+            seed_default_blocks()
     except Exception as e:
         print("WARNING: database initialization failed:", e)
 
-# Attempt to initialize the database, but do not stop app import on failure.
-init_database()
-from models import Block
 
-with app.app_context():
+def seed_default_blocks():
+    if Block.query.count() > 0:
+        return
 
-    if Block.query.count() == 0:
+    blocks = [
+        Block(block_name="Perambalur", certificate_template="winner.png"),
+        Block(block_name="Veppanthattai", certificate_template="winner.png"),
+        Block(block_name="Alathur", certificate_template="winner.png"),
+        Block(block_name="Kunnam", certificate_template="winner.png"),
+        Block(block_name="Veppur", certificate_template="winner.png"),
+    ]
 
-        blocks = [
+    db.session.add_all(blocks)
+    db.session.commit()
 
-            Block(
-                block_name="Perambalur",
-                certificate_template="winner.png"
-            ),
 
-            Block(
-                block_name="Veppanthattai",
-                certificate_template="winner.png"
-            ),
+@app.cli.command("seed-data")
+def seed_data_command():
+    init_database()
+    print("Default events, fields, and blocks seeded.")
 
-            Block(
-                block_name="Alathur",
-                certificate_template="winner.png"
-            ),
 
-            Block(
-                block_name="Kunnam",
-                certificate_template="winner.png"
-            ),
-
-            Block(
-                block_name="Veppur",
-                certificate_template="winner.png"
-            )
-
-        ]
-
-        db.session.add_all(blocks)
-
-        db.session.commit()
 # ==========================
 # Run Application
 # ==========================
