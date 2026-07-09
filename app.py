@@ -4,6 +4,7 @@ from urllib.parse import quote_plus
 
 from dotenv import load_dotenv
 from flask_migrate import Migrate
+from sqlalchemy.exc import OperationalError
 
 from models import db, Block, Event, EventField
 
@@ -85,6 +86,73 @@ migrate = Migrate(app, db)
 app.register_blueprint(routes_bp)
 app.register_blueprint(admin_bp)
 app.register_blueprint(layout_bp)
+
+
+@app.errorhandler(OperationalError)
+def database_connection_error(error):
+    print("===== DATABASE CONNECTION ERROR =====")
+    print(error)
+    print("=====================================")
+    return (
+        """
+        <!doctype html>
+        <html lang="en">
+        <head>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1">
+            <title>Database unavailable</title>
+            <style>
+                body {
+                    margin: 0;
+                    min-height: 100vh;
+                    display: grid;
+                    place-items: center;
+                    font-family: Arial, sans-serif;
+                    background: #f6f7f9;
+                    color: #1f2937;
+                }
+                main {
+                    width: min(680px, calc(100% - 32px));
+                    background: #fff;
+                    border: 1px solid #d8dee8;
+                    border-radius: 8px;
+                    padding: 28px;
+                    box-shadow: 0 14px 34px rgba(15, 23, 42, 0.08);
+                }
+                h1 {
+                    margin: 0 0 12px;
+                    font-size: 24px;
+                }
+                p {
+                    line-height: 1.55;
+                }
+                code {
+                    background: #eef2f7;
+                    border-radius: 4px;
+                    padding: 2px 6px;
+                }
+            </style>
+        </head>
+        <body>
+            <main>
+                <h1>Database is not connected</h1>
+                <p>
+                    The website is running, but it cannot connect to MySQL at
+                    <code>localhost:3306</code>. Start MySQL and create the
+                    configured database, then refresh this page.
+                </p>
+                <p>
+                    After MySQL is running, use
+                    <code>py -m flask --app app db upgrade</code> and
+                    <code>py -m flask --app app seed-data</code>.
+                </p>
+            </main>
+        </body>
+        </html>
+        """,
+        503,
+    )
+
 
 @app.errorhandler(500)
 def internal_server_error(error):
