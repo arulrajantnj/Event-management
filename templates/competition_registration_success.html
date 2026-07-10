@@ -1,0 +1,3 @@
+{% extends "base.html" %}
+{% block title %}Registration Successful{% endblock %}
+{% block content %}<main class="container py-5" style="max-width:700px"><div class="alert alert-success shadow-sm p-4"><h3>Registration successful</h3><p class="mb-2"><strong>{{ registration.participant_name }}</strong> is registered for <strong>{{ registration.competition.name }}</strong>.</p><p class="mb-3">Registration No: <strong>{{ registration.registration_no }}</strong></p><a class="btn btn-primary" href="{{ url_for('routes.competition_register') }}">Register another participant</a></div></main>{% endblock %}

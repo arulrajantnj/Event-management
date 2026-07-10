@@ -78,23 +78,19 @@ body{
                     {% endif %}
 
                     <div class="row g-4 align-items-start">
+                        {% if participant.event_collect_photo %}
                         <div class="col-md-4 text-center">
                             <div class="photo-box">
                                 {% if participant.event_collect_photo and participant.photo %}
                                 <img src="{{ url_for('static', filename='uploads/' ~ participant.photo) }}" alt="Participant Photo">
                                 {% else %}
-                                <div class="text-muted px-3">
-                                    {% if participant.event_collect_photo %}
-                                    No photo uploaded
-                                    {% else %}
-                                    Photo not required
-                                    {% endif %}
-                                </div>
+                                <div class="text-muted px-3">No photo uploaded</div>
                                 {% endif %}
                             </div>
                         </div>
 
-                        <div class="col-md-8">
+                        {% endif %}
+                        <div class="{% if participant.event_collect_photo %}col-md-8{% else %}col-12{% endif %}">
                             <div class="table-responsive">
                                 <table class="table table-bordered align-middle">
                                     <tbody>

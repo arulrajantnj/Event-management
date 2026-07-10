@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Acknowledgement - {{ participant.reg_id }}</title>
+<style>
+body{font-family:Arial,sans-serif;color:#172033;margin:36px}.slip{max-width:760px;margin:auto;border:2px solid #1d4ed8;padding:30px;border-radius:12px}h1{text-align:center;color:#1d4ed8;margin:0 0 8px}.sub{text-align:center;color:#566277;margin:0 0 26px}table{width:100%;border-collapse:collapse}th,td{padding:10px;border:1px solid #cbd5e1;text-align:left}th{width:35%;background:#eff6ff}.details{margin:22px 0;padding:14px;background:#eff6ff;border-radius:8px}.footer{margin-top:30px;color:#566277;font-size:12px;text-align:center}@media print{body{margin:0}.slip{border:0}}
+</style>
+</head>
+<body><main class="slip">
+<h1>Registration Acknowledgement</h1>
+<p class="sub">{{ participant.event.name }}</p>
+<table>
+<tr><th>Registration ID</th><td>{{ participant.reg_id }}</td></tr>
+<tr><th>Participant Name</th><td>{{ participant.salutation }} {{ participant.teacher_name }}</td></tr>
+<tr><th>Mobile Number</th><td>{{ participant.mobile }}</td></tr>
+{% if participant.email %}<tr><th>Email</th><td>{{ participant.email }}</td></tr>{% endif %}
+{% if participant.school_name %}<tr><th>School / Organization</th><td>{{ participant.school_name }}</td></tr>{% endif %}
+</table>
+{% if participant.event.show_venue or participant.event.show_event_date or participant.event.show_event_time or participant.event.show_chief_guest %}
+<section class="details"><strong>Event Details</strong><br>
+{% if participant.event.show_venue and participant.event.venue %}Venue: {{ participant.event.venue }}<br>{% endif %}
+{% if participant.event.show_event_date and participant.event.event_date %}Date: {{ participant.event.event_date.strftime('%d-%m-%Y') }}<br>{% endif %}
+{% if participant.event.show_event_time and participant.event.event_time %}Time: {{ participant.event.event_time }}<br>{% endif %}
+{% if participant.event.show_chief_guest and participant.event.chief_guest %}Chief Guest: {{ participant.event.chief_guest }}{% endif %}
+</section>{% endif %}
+<p class="footer">Please retain this acknowledgement for event verification.</p>
+</main></body></html>

@@ -7,6 +7,7 @@ from flask import (
     send_file,
     url_for,
     Response,
+    make_response,
 )
 
 from sqlalchemy.exc import IntegrityError
@@ -20,11 +21,15 @@ from models import (
     OnlineExam,
     Participant,
     Block,
+    Competition,
+    CompetitionJudge,
+    CompetitionRegistration,
 )
 from certificate_generator import generate_certificate, get_active_template
 
 from datetime import datetime, timedelta
 import qrcode
+import math
 import json
 import os
 import re
@@ -118,14 +123,26 @@ def home():
         Event.id.desc()
     ).all()
     latest_events = events[:3]
-    ticker_messages = [
-        event.marquee_message or (
-            f"{event.name} service is now available."
-            if event.registration_type == "no_registration"
-            else f"{event.name} registration is now open."
-        )
+    ticker_items = [
+        {
+            "message": event.marquee_message or (
+                f"{event.name} service is now available."
+                if event.registration_type == "no_registration"
+                else f"{event.name} registration is now open."
+            ),
+            "url": url_for("routes.register", event=event.slug),
+        }
         for event in events
     ]
+    ticker_items.extend(
+        {
+            "message": f"{competition.name} competition registration is open.",
+            "url": url_for("routes.competition_register"),
+        }
+        for competition in Competition.query.filter_by(registration_enabled=True)
+        .order_by(Competition.created_at.desc(), Competition.id.desc())
+        .all()
+    )
     return render_template(
         "index.html",
         events=events,
@@ -135,8 +152,108 @@ def home():
             for event in events
             if event.registration_type != "no_registration"
         ],
-        ticker_messages=ticker_messages
+        ticker_items=ticker_items
     )
+
+
+RANK_OPTIONS = ["Winner", "Runner", "1st Place", "2nd Place", "3rd Place", "Participant Certificate"]
+
+
+def competition_registration_number():
+    while True:
+        number = f"CMP{uuid.uuid4().hex[:8].upper()}"
+        if not CompetitionRegistration.query.filter_by(registration_no=number).first():
+            return number
+
+
+@routes.route("/competition-register", methods=["GET", "POST"])
+def competition_register():
+    competitions = Competition.query.filter_by(registration_enabled=True).order_by(Competition.name).all()
+    # Use the normal registration flow for every competition participant.
+    # This preserves mandatory event fields, registration IDs, QR/barcodes and
+    # the existing attendance process.
+    return render_template("competition_register.html", competitions=competitions)
+
+
+@routes.route("/results")
+def public_competition_results():
+    competitions = Competition.query.filter_by(results_published=True).order_by(Competition.name).all()
+    competition_id = request.args.get("competition_id", type=int)
+    selected = Competition.query.filter_by(id=competition_id, results_published=True).first() if competition_id else None
+    public_exams = OnlineExam.query.filter_by(public_results_published=True).order_by(OnlineExam.exam_title).all()
+    exam_id = request.args.get("exam_id", type=int)
+    selected_exam = OnlineExam.query.filter_by(id=exam_id, public_results_published=True).first() if exam_id else None
+    results = []
+    if selected:
+        # Only administrator-published competitions reach this point. Include
+        # certificate recipients so every child can find their result.
+        results = CompetitionRegistration.query.filter_by(
+            competition_id=selected.id
+        ).order_by(
+            CompetitionRegistration.score.desc(),
+            CompetitionRegistration.participant_name,
+        ).all()
+    exam_attempts = []
+    if selected_exam:
+        exam_attempts = ExamAttempt.query.filter_by(exam_id=selected_exam.id).filter(
+            ExamAttempt.evaluation_status == "evaluated"
+        ).order_by(ExamAttempt.score.desc(), ExamAttempt.submitted_at.asc()).all()
+    return render_template(
+        "competition_results.html", competitions=competitions, selected=selected,
+        results=results, public_exams=public_exams, selected_exam=selected_exam,
+        exam_attempts=exam_attempts,
+    )
+
+
+@routes.route("/judge/login", methods=["GET", "POST"])
+def judge_login():
+    error = ""
+    if request.method == "POST":
+        judge = CompetitionJudge.query.filter_by(username=request.form.get("username", "").strip(), is_active=True).first()
+        if judge and check_password_hash(judge.password_hash, request.form.get("password", "")):
+            session["competition_judge_id"] = judge.id
+            return redirect(url_for("routes.judge_competition", competition_id=judge.competition_id))
+        error = "Invalid judge username or password."
+    return render_template("judge_login.html", error=error)
+
+
+@routes.route("/judge/competition/<int:competition_id>", methods=["GET", "POST"])
+def judge_competition(competition_id):
+    judge = CompetitionJudge.query.get(session.get("competition_judge_id"))
+    if not judge or not judge.is_active or judge.competition_id != competition_id:
+        return redirect(url_for("routes.judge_login"))
+    competition = Competition.query.get_or_404(competition_id)
+    registrations = CompetitionRegistration.query.filter_by(competition_id=competition.id).order_by(CompetitionRegistration.participant_name).all()
+    error = ""
+    if request.method == "POST":
+        if not request.form.get("declaration"):
+            error = "Please confirm the declaration after checking every score and rank."
+        else:
+            updates = []
+            try:
+                for registration in registrations:
+                    score = float(request.form.get(f"score_{registration.id}", ""))
+                    rank = request.form.get(f"rank_{registration.id}", "Participant Certificate")
+                    if not math.isfinite(score) or score < 0 or rank not in RANK_OPTIONS:
+                        raise ValueError
+                    updates.append((registration, score, rank))
+            except ValueError:
+                error = "Enter a valid score and rank for every participant before submitting."
+            if not error:
+                for registration, score, rank in updates:
+                    registration.is_present = request.form.get(f"attendance_{registration.id}") == "present"
+                    registration.score = score
+                    registration.rank = rank
+                    registration.judge_submitted_at = datetime.utcnow()
+                db.session.commit()
+                return redirect(url_for("routes.judge_competition", competition_id=competition.id, saved=1))
+    return render_template("judge_competition.html", judge=judge, competition=competition, registrations=registrations, ranks=RANK_OPTIONS, error=error)
+
+
+@routes.route("/judge/logout")
+def judge_logout():
+    session.pop("competition_judge_id", None)
+    return redirect(url_for("routes.judge_login"))
 
 
 @routes.route("/sitemap.xml")
@@ -196,7 +313,7 @@ def registration_events():
     return [
         event
         for event in active_events()
-        if event.registration_type != "no_registration"
+        if event.registration_type != "no_registration" and event.public_registration_enabled
     ]
 
 
@@ -292,6 +409,9 @@ def event_field_state(event):
         "acknowledgement_enabled": bool(event.acknowledgement_enabled),
         "certificate_enabled": bool(event.certificate_enabled),
         "qr_sharing_enabled": bool(event.qr_sharing_enabled),
+        "event_details_enabled": bool(event and (
+            event.show_venue or event.show_event_date or event.show_event_time or event.show_chief_guest
+        )),
     }
 
 
@@ -552,6 +672,7 @@ def recalculate_attempt_scores(attempt):
 @routes.route("/register", methods=["GET", "POST"])
 def register():
     requested_slug = request.args.get("event", "").strip()
+    competition_mode = request.args.get("competition_mode") == "1"
     events, selected_event = selected_event_or_default(requested_slug)
 
     if not selected_event:
@@ -569,6 +690,7 @@ def register():
 
     if request.method == "POST":
         event_slug = request.form.get("event_slug", "").strip()
+        competition_mode = request.form.get("competition_mode") == "1"
         events, selected_event = selected_event_or_default(event_slug)
 
         if not selected_event:
@@ -586,10 +708,48 @@ def register():
 
         field_state = event_field_state(selected_event)
         event_fields = field_state["registration_fields"]
-        field_values, extra_data, validation_errors = validate_registration_fields(
+        available_competitions = Competition.query.filter_by(
+            event_id=selected_event.id, registration_enabled=True
+        ).order_by(Competition.name).all()
+        selected_competition = None
+        requested_competition_id = request.form.get("competition_id", type=int)
+        if requested_competition_id:
+            selected_competition = Competition.query.filter_by(
+                id=requested_competition_id,
+                event_id=selected_event.id,
+                registration_enabled=True,
+            ).first()
+            if competition_mode and not selected_competition:
+                return render_template(
+                    "register.html",
+                    error="Please select an open competition.",
+                    events=events,
+                    selected_event=selected_event,
+                    selected_event_slug=selected_event.slug,
+                    competition_mode=True,
+                    competitions=available_competitions,
+                    certificate_image=current_certificate_image(),
+                    field_state=field_state,
+                    event_fields=event_fields,
+                    form_values=request.form,
+                )
+        if competition_mode and not selected_competition:
+            validation_errors = ["Please select an open competition."]
+            field_values, extra_data = {}, {}
+        else:
+            field_values, extra_data, validation_errors = validate_registration_fields(
             selected_event,
             event_fields
-        )
+            )
+
+        if not request.form.get("event_details_declaration"):
+            enabled_details = any((
+                selected_event.show_venue,
+                selected_event.show_event_date,
+                selected_event.show_event_time,
+            ))
+            if enabled_details:
+                validation_errors.append("Please confirm that you have noted the event venue, date and time.")
 
         teacher_name = field_values.get("teacher_name", "").strip()
         mobile = field_values.get("mobile", "").strip()
@@ -612,6 +772,8 @@ def register():
                 events=events,
                 selected_event=selected_event,
                 selected_event_slug=selected_event.slug,
+                competition_mode=competition_mode,
+                competitions=available_competitions,
                 certificate_image=current_certificate_image(),
                 field_state=field_state,
                 event_fields=event_fields,
@@ -631,6 +793,8 @@ def register():
                 events=events,
                 selected_event=selected_event,
                 selected_event_slug=selected_event.slug,
+                competition_mode=competition_mode,
+                competitions=available_competitions,
                 certificate_image=current_certificate_image(),
                 field_state=field_state,
                 event_fields=event_fields,
@@ -670,6 +834,8 @@ def register():
                 events=events,
                 selected_event=selected_event,
                 selected_event_slug=selected_event.slug,
+                competition_mode=competition_mode,
+                competitions=available_competitions,
                 certificate_image=current_certificate_image(),
                 field_state=field_state,
                 event_fields=event_fields,
@@ -686,6 +852,8 @@ def register():
             "event_name": selected_event.name,
 
             "event_slug": selected_event.slug,
+            "competition_id": selected_competition.id if selected_competition else None,
+            "competition_name": selected_competition.name if selected_competition else "",
 
             "event_requires_photo": selected_event.requires_photo,
             "event_collect_photo": field_state["collect_photo"],
@@ -733,6 +901,8 @@ def register():
         events=events,
         selected_event=selected_event,
         selected_event_slug=selected_event.slug,
+        competition_mode=competition_mode,
+        competitions=Competition.query.filter_by(event_id=selected_event.id, registration_enabled=True).order_by(Competition.name).all(),
         certificate_image=current_certificate_image(),
         field_state=event_field_state(selected_event),
         event_fields=registration_field_payload(selected_event),
@@ -854,6 +1024,23 @@ def confirm_registration():
             form_values=data.get("field_values", data),
         )
 
+    # Keep a competition scoring record linked by the same normal registration
+    # number. The participant itself remains the standard Participant record,
+    # so QR/barcode and attendance work exactly as for every other event.
+    if data.get("competition_id"):
+        competition = Competition.query.get(data["competition_id"])
+        if competition:
+            db.session.add(CompetitionRegistration(
+                competition_id=competition.id,
+                registration_no=participant.reg_id,
+                participant_name=participant.teacher_name,
+                gender=data.get("field_values", {}).get("custom_gender", "Not specified") or "Not specified",
+                mobile=participant.mobile,
+                school_name=participant.school_name,
+                class_name=data.get("field_values", {}).get("custom_grade", ""),
+            ))
+            db.session.commit()
+
     # --------------------------------------------
     # Generate QR Code
     # --------------------------------------------
@@ -964,6 +1151,8 @@ def downloads():
         and participant.event
         and participant.event.certificate_enabled
     )
+    acknowledgement_ready = bool(participant and participant.event and participant.event.acknowledgement_enabled)
+    qr_ready = bool(participant and participant.event and participant.event.qr_sharing_enabled)
 
     return render_template(
         "downloads.html",
@@ -971,6 +1160,8 @@ def downloads():
         searched=searched,
         error=error,
         certificate_ready=certificate_ready,
+        acknowledgement_ready=acknowledgement_ready,
+        qr_ready=qr_ready,
     )
 
 
@@ -1025,6 +1216,39 @@ def download_certificate_secure():
     )
 
     return send_file(filepath, as_attachment=True)
+
+
+def secure_download_participant():
+    reg_id = request.form.get("reg_id", "").strip().upper()
+    mobile = request.form.get("mobile", "").strip()
+    return Participant.query.filter_by(reg_id=reg_id, mobile=mobile).first()
+
+
+@routes.route("/download-code-secure", methods=["POST"])
+def download_code_secure():
+    participant = secure_download_participant()
+    if not participant or not participant.event or not participant.event.qr_sharing_enabled:
+        return redirect(url_for("routes.downloads"))
+
+    filepath = os.path.join(QR_FOLDER, f"{participant.reg_id}.png")
+    if not os.path.exists(filepath):
+        generate_participant_code(participant.event, participant)
+        db.session.commit()
+    return send_file(filepath, as_attachment=True, download_name=f"{participant.reg_id}-qr.png")
+
+
+@routes.route("/download-acknowledgement-secure", methods=["POST"])
+def download_acknowledgement_secure():
+    participant = secure_download_participant()
+    if not participant or not participant.event or not participant.event.acknowledgement_enabled:
+        return redirect(url_for("routes.downloads"))
+
+    response = make_response(render_template("acknowledgement_download.html", participant=participant))
+    response.headers["Content-Disposition"] = (
+        f'attachment; filename="{participant.reg_id}-acknowledgement.html"'
+    )
+    response.mimetype = "text/html"
+    return response
 
 
 # ==========================================================

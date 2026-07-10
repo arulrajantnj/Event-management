@@ -120,6 +120,34 @@ body{
     border-radius:12px;
 }
 
+.declaration-box{
+    border:2px solid #0d6efd;
+    background:linear-gradient(135deg,#eef6ff,#f0fff7);
+    border-radius:14px;
+    padding:18px 20px;
+    box-shadow:0 5px 14px rgba(13,110,253,.10);
+}
+
+.declaration-box .form-check-input{
+    width:1.4rem;
+    height:1.4rem;
+    margin-top:.15rem;
+    border:2px solid #0d6efd;
+    cursor:pointer;
+}
+
+.declaration-box .form-check-input:checked{
+    background-color:#198754;
+    border-color:#198754;
+}
+
+.declaration-box .form-check-label{
+    padding-left:.4rem;
+    font-weight:700;
+    color:#12345b;
+    cursor:pointer;
+}
+
 @media(max-width:768px){
     .container{
         padding-left:12px;
@@ -283,6 +311,19 @@ required>
 </select>
 </div>
 
+{% if competitions %}
+{% if competition_mode %}<input type="hidden" name="competition_mode" value="1">{% endif %}
+<div class="mb-3">
+<label class="form-label">Competition Type {% if competition_mode %}<span class="required">*</span>{% else %}<small class="text-muted">(optional)</small>{% endif %}</label>
+<select name="competition_id" class="form-select" {% if competition_mode %}required{% endif %}>
+    <option value="">Select competition</option>
+    {% for competition in competitions %}
+    <option value="{{ competition.id }}" {% if form_values.get('competition_id', '')|string == competition.id|string %}selected{% endif %}>{{ competition.name }}{% if competition.category %} — {{ competition.category }}{% endif %}</option>
+    {% endfor %}
+</select>
+</div>
+{% endif %}
+
 {% if selected_event and selected_event.payment_enabled %}
 <div class="alert alert-warning mt-3">
     <strong>Payment Gateway Enabled:</strong>
@@ -305,6 +346,18 @@ required>
         <i class="fa-brands fa-whatsapp"></i>
         Join Group
     </a>
+</div>
+{% endif %}
+
+{% if selected_event and (selected_event.show_venue or selected_event.show_event_date or selected_event.show_event_time or selected_event.show_chief_guest) %}
+<div class="alert alert-primary mt-3">
+    <strong><i class="fa-solid fa-circle-info"></i> Event Details</strong>
+    <ul class="mb-0 mt-2">
+        {% if selected_event.show_venue and selected_event.venue %}<li><strong>Venue:</strong> {{ selected_event.venue }}</li>{% endif %}
+        {% if selected_event.show_event_date and selected_event.event_date %}<li><strong>Date:</strong> {{ selected_event.event_date.strftime('%d-%m-%Y') }}</li>{% endif %}
+        {% if selected_event.show_event_time and selected_event.event_time %}<li><strong>Time:</strong> {{ selected_event.event_time }}</li>{% endif %}
+        {% if selected_event.show_chief_guest and selected_event.chief_guest %}<li><strong>Chief Guest:</strong> {{ selected_event.chief_guest }}</li>{% endif %}
+    </ul>
 </div>
 {% endif %}
 
@@ -401,12 +454,25 @@ Registration Details
 Declaration
 </div>
 
-<div class="form-check mb-4">
+<div class="declaration-box mb-4">
+<div class="form-check">
 <input class="form-check-input" type="checkbox" id="declaration" required>
 <label class="form-check-label" for="declaration">
 I hereby declare that the information furnished above is true and correct. I understand that any incorrect information may lead to rejection of my registration.
 </label>
 </div>
+</div>
+
+{% if selected_event and (selected_event.show_venue or selected_event.show_event_date or selected_event.show_event_time) %}
+<div class="declaration-box mb-4">
+<div class="form-check">
+<input class="form-check-input" type="checkbox" name="event_details_declaration" id="event_details_declaration" required>
+<label class="form-check-label" for="event_details_declaration">
+I have noted the event venue, date and time and agree to attend accordingly.
+</label>
+</div>
+</div>
+{% endif %}
 
 <div class="row">
 
@@ -453,7 +519,9 @@ const previewImage = document.getElementById("preview");
 if (eventSelect) {
     eventSelect.addEventListener("change", function() {
         const slug = this.value;
-        window.location.href = slug ? "/register?event=" + encodeURIComponent(slug) : "/register";
+        const competitionMode = document.querySelector('input[name="competition_mode"]');
+        const mode = competitionMode ? "&competition_mode=1" : "";
+        window.location.href = slug ? "/register?event=" + encodeURIComponent(slug) + mode : "/register";
     });
 }
 

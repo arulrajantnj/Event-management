@@ -76,6 +76,29 @@
                     <textarea name="description" class="form-control" rows="4"></textarea>
                 </div>
 
+                <div class="border rounded-4 p-3 mb-3 bg-light">
+                    <h6 class="mb-3">Participant Entry</h6>
+                    <div class="form-check mb-2">
+                        <input class="form-check-input" type="checkbox" name="public_registration_enabled" id="public_registration_enabled" checked>
+                        <label class="form-check-label" for="public_registration_enabled">Enable participant self-registration</label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" name="participant_bulk_upload_enabled" id="participant_bulk_upload_enabled">
+                        <label class="form-check-label" for="participant_bulk_upload_enabled">Enable participant bulk upload (Excel / CSV)</label>
+                    </div>
+                    <small class="text-muted">Imported participants automatically receive a QR / barcode for attendance.</small>
+                </div>
+
+                <div class="border rounded-4 p-3 mb-3 bg-light">
+                    <h6 class="mb-3">Event Details Shown to Participants</h6>
+                    <div class="row g-2">
+                        <div class="col-md-6"><div class="form-check"><input class="form-check-input" type="checkbox" name="show_venue" id="show_venue"><label class="form-check-label" for="show_venue">Show venue</label></div><input name="venue" class="form-control mt-1" placeholder="Venue"></div>
+                        <div class="col-md-6"><div class="form-check"><input class="form-check-input" type="checkbox" name="show_event_date" id="show_event_date"><label class="form-check-label" for="show_event_date">Show date</label></div><input type="date" name="event_date" class="form-control mt-1"></div>
+                        <div class="col-md-6"><div class="form-check"><input class="form-check-input" type="checkbox" name="show_event_time" id="show_event_time"><label class="form-check-label" for="show_event_time">Show time</label></div><input name="event_time" class="form-control mt-1" placeholder="e.g. 10:00 AM"></div>
+                        <div class="col-md-6"><div class="form-check"><input class="form-check-input" type="checkbox" name="show_chief_guest" id="show_chief_guest"><label class="form-check-label" for="show_chief_guest">Show chief guest</label></div><input name="chief_guest" class="form-control mt-1" placeholder="Chief guest name"></div>
+                    </div>
+                </div>
+
                 <div class="mb-3">
                     <label class="form-label">Scrolling Message</label>
                     <input type="text" name="marquee_message" class="form-control" placeholder="New event registration is now live.">

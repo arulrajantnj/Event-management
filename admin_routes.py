@@ -9,17 +9,26 @@ from models import (
     ExamSubject,
     OnlineExam,
     Participant,
+    ExamDutyAllocation,
+    ExamDutyCenter,
+    ExamDutyTeacher,
+    Competition,
+    CompetitionJudge,
+    CompetitionRegistration,
 )
 from datetime import datetime
+import math
 from io import BytesIO
 import json
 import os
 import pandas as pd
 import re
 import uuid
+import random
 from werkzeug.utils import secure_filename
 from werkzeug.security import generate_password_hash
 from attendance_service import mark_attendance as service_mark_attendance
+from routes import generate_participant_code, registration_id_for_event
 
 
 admin_bp = Blueprint("admin", __name__)
@@ -107,6 +116,14 @@ def bounded_int(name, default, minimum, maximum):
 def choice_value(name, default, allowed):
     value = (request.form.get(name, default) or default).strip().lower()
     return value if value in allowed else default
+
+
+def event_date_value():
+    value = request.form.get("event_date", "").strip()
+    try:
+        return datetime.strptime(value, "%Y-%m-%d").date() if value else None
+    except ValueError:
+        return None
 
 
 def save_sponsor_upload(field_name, existing_filename=""):
@@ -217,6 +234,16 @@ def event_payload_from_form(event=None):
         "slug": request.form.get("slug", "").strip(),
         "description": request.form.get("description", "").strip(),
         "registration_type": registration_type,
+        "public_registration_enabled": checkbox_value("public_registration_enabled"),
+        "participant_bulk_upload_enabled": checkbox_value("participant_bulk_upload_enabled"),
+        "show_venue": checkbox_value("show_venue"),
+        "venue": request.form.get("venue", "").strip(),
+        "show_event_date": checkbox_value("show_event_date"),
+        "event_date": event_date_value(),
+        "show_event_time": checkbox_value("show_event_time"),
+        "event_time": request.form.get("event_time", "").strip(),
+        "show_chief_guest": checkbox_value("show_chief_guest"),
+        "chief_guest": request.form.get("chief_guest", "").strip(),
         "collect_photo": collect_photo,
         "requires_photo": collect_photo and checkbox_value("requires_photo"),
         "collect_email": True,
@@ -328,6 +355,7 @@ def online_exam_payload_from_form():
         "tab_switch_limit": request.form.get("tab_switch_limit", 3, type=int) or 3,
         "auto_submit_on_violation": checkbox_value("auto_submit_on_violation"),
         "show_result_immediately": checkbox_value("show_result_immediately"),
+        "public_results_published": checkbox_value("public_results_published"),
         "is_active": checkbox_value("is_active"),
     }
 
@@ -603,6 +631,106 @@ def admin():
     )
 
 
+COMPETITION_RANK_OPTIONS = ["Winner", "Runner", "1st Place", "2nd Place", "3rd Place", "Participant Certificate"]
+
+
+def competition_admin_redirect(competition_id=None, **params):
+    endpoint = "admin.competition_results_admin" if competition_id else "admin.competitions"
+    if competition_id:
+        return redirect(url_for(endpoint, competition_id=competition_id, **params))
+    return redirect(url_for(endpoint, **params))
+
+
+@admin_bp.route("/admin/competitions", methods=["GET", "POST"])
+def competitions():
+    if "admin" not in session:
+        return redirect(url_for("routes.login"))
+    events = Event.query.order_by(Event.created_at.desc(), Event.id.desc()).all()
+    if request.method == "POST":
+        event_id = request.form.get("event_id", type=int)
+        name = request.form.get("name", "").strip()
+        if not Event.query.get(event_id) or not name:
+            return competition_admin_redirect(error="missing_fields")
+        db.session.add(Competition(
+            event_id=event_id,
+            name=name,
+            category=request.form.get("category", "").strip(),
+            description=request.form.get("description", "").strip(),
+            registration_enabled=bool(request.form.get("registration_enabled")),
+        ))
+        db.session.commit()
+        return competition_admin_redirect(created=1)
+    competition_rows = Competition.query.order_by(Competition.created_at.desc(), Competition.id.desc()).all()
+    stats = []
+    for competition in competition_rows:
+        registrations = competition.registrations
+        stats.append({
+            "competition": competition,
+            "total": len(registrations),
+            "male": sum(row.gender.lower() == "male" for row in registrations),
+            "female": sum(row.gender.lower() == "female" for row in registrations),
+            "winners": [row for row in registrations if row.rank in COMPETITION_RANK_OPTIONS[:5]],
+        })
+    return render_template("admin/competitions.html", events=events, stats=stats)
+
+
+@admin_bp.route("/admin/competitions/<int:competition_id>/settings", methods=["POST"])
+def update_competition_settings(competition_id):
+    if "admin" not in session:
+        return redirect(url_for("routes.login"))
+    competition = Competition.query.get_or_404(competition_id)
+    competition.registration_enabled = bool(request.form.get("registration_enabled"))
+    competition.results_published = bool(request.form.get("results_published"))
+    db.session.commit()
+    return competition_admin_redirect(updated=1)
+
+
+@admin_bp.route("/admin/competitions/<int:competition_id>/judges", methods=["POST"])
+def add_competition_judge(competition_id):
+    if "admin" not in session:
+        return redirect(url_for("routes.login"))
+    competition = Competition.query.get_or_404(competition_id)
+    name = request.form.get("name", "").strip()
+    username = request.form.get("username", "").strip()
+    password = request.form.get("password", "")
+    if not name or not username or not password or CompetitionJudge.query.filter_by(username=username).first():
+        return competition_admin_redirect(competition.id, judge_error=1)
+    db.session.add(CompetitionJudge(
+        competition_id=competition.id,
+        name=name,
+        username=username,
+        password_hash=generate_password_hash(password),
+    ))
+    db.session.commit()
+    return competition_admin_redirect(competition.id, judge_created=1)
+
+
+@admin_bp.route("/admin/competitions/<int:competition_id>/results", methods=["GET", "POST"])
+def competition_results_admin(competition_id):
+    if "admin" not in session:
+        return redirect(url_for("routes.login"))
+    competition = Competition.query.get_or_404(competition_id)
+    registrations = CompetitionRegistration.query.filter_by(competition_id=competition.id).order_by(CompetitionRegistration.participant_name).all()
+    if request.method == "POST":
+        try:
+            for registration in registrations:
+                score = float(request.form.get(f"score_{registration.id}", ""))
+                rank = request.form.get(f"rank_{registration.id}", "Participant Certificate")
+                if not math.isfinite(score) or score < 0 or rank not in COMPETITION_RANK_OPTIONS:
+                    raise ValueError
+                registration.score = score
+                registration.rank = rank
+                registration.is_present = request.form.get(f"attendance_{registration.id}") == "present"
+            db.session.commit()
+            return competition_admin_redirect(competition.id, saved=1)
+        except ValueError:
+            return competition_admin_redirect(competition.id, score_error=1)
+    return render_template(
+        "admin/competition_results.html", competition=competition, registrations=registrations,
+        ranks=COMPETITION_RANK_OPTIONS,
+    )
+
+
 @admin_bp.route("/admin/attendance", methods=["GET", "POST"])
 def attendance():
 
@@ -728,6 +856,279 @@ def row_value(row, *names):
             if value:
                 return value
     return ""
+
+
+def duty_redirect(event_id, **params):
+    return redirect(url_for("admin.exam_duty_allocation", event_id=event_id, **params))
+
+
+@admin_bp.route("/admin/exam-duty-allocation")
+def exam_duty_allocation():
+    if "admin" not in session:
+        return redirect(url_for("routes.login"))
+
+    events = Event.query.order_by(Event.created_at.desc(), Event.id.desc()).all()
+    event_id = request.args.get("event_id", type=int)
+    event = Event.query.get(event_id) if event_id else (events[0] if events else None)
+    teachers = []
+    centers = []
+    allocations = []
+    if event:
+        teachers = ExamDutyTeacher.query.filter_by(event_id=event.id).order_by(ExamDutyTeacher.teacher_name).all()
+        centers = ExamDutyCenter.query.filter_by(event_id=event.id).order_by(ExamDutyCenter.center_no).all()
+        allocations = ExamDutyAllocation.query.filter_by(event_id=event.id).join(ExamDutyCenter).order_by(ExamDutyCenter.center_no, ExamDutyAllocation.id).all()
+
+    allocated_count = len(allocations)
+    required_count = sum(center.invigilators_required for center in centers)
+    return render_template(
+        "admin/exam_duty_allocation.html", events=events, event=event,
+        teachers=teachers, centers=centers, allocations=allocations,
+        allocated_count=allocated_count, required_count=required_count,
+    )
+
+
+@admin_bp.route("/admin/exam-duty-allocation/<int:event_id>/teachers/import", methods=["POST"])
+def import_exam_duty_teachers(event_id):
+    if "admin" not in session:
+        return redirect(url_for("routes.login"))
+    event = Event.query.get_or_404(event_id)
+    upload = request.files.get("teachers_file")
+    if not upload or not upload.filename:
+        return duty_redirect(event.id, teacher_import_error="missing_file")
+    try:
+        frame = pd.read_csv(upload) if upload.filename.lower().endswith(".csv") else pd.read_excel(upload)
+    except Exception:
+        return duty_redirect(event.id, teacher_import_error="invalid_file")
+
+    frame.columns = [str(column).strip().lower().replace(" ", "_") for column in frame.columns]
+    created = updated = skipped = 0
+    for _, row in frame.iterrows():
+        teacher_id = row_value(row, "teacher_id", "teacherid", "staff_id", "employee_id")
+        name = row_value(row, "teacher_name", "name", "staff_name")
+        udise_code = row_value(row, "udise_code", "udise", "school_udise_code")
+        working_school = row_value(row, "working_school", "school_name", "school")
+        working_block = row_value(row, "working_block", "block", "school_block")
+        if not teacher_id or not name or not udise_code or not working_block:
+            skipped += 1
+            continue
+        teacher = ExamDutyTeacher.query.filter_by(event_id=event.id, teacher_id=teacher_id).first()
+        values = {
+            "teacher_name": name, "mobile": row_value(row, "mobile", "mobile_number", "phone"),
+            "designation": row_value(row, "designation"), "working_school": working_school,
+            "udise_code": udise_code, "working_block": working_block, "is_active": True,
+        }
+        if teacher:
+            for key, value in values.items():
+                setattr(teacher, key, value)
+            updated += 1
+        else:
+            db.session.add(ExamDutyTeacher(event_id=event.id, teacher_id=teacher_id, **values))
+            created += 1
+    db.session.commit()
+    return duty_redirect(event.id, teacher_import_created=created, teacher_import_updated=updated, teacher_import_skipped=skipped)
+
+
+@admin_bp.route("/admin/exam-duty-allocation/<int:event_id>/centers", methods=["POST"])
+def add_exam_duty_center(event_id):
+    if "admin" not in session:
+        return redirect(url_for("routes.login"))
+    event = Event.query.get_or_404(event_id)
+    center_name = request.form.get("center_name", "").strip()
+    center_no = request.form.get("center_no", "").strip()
+    center_block = request.form.get("center_block", "").strip()
+    required = max(request.form.get("invigilators_required", 1, type=int) or 1, 1)
+    if not center_name or not center_no or not center_block:
+        return duty_redirect(event.id, center_error="missing_fields")
+    existing = ExamDutyCenter.query.filter_by(event_id=event.id, center_no=center_no).first()
+    if existing:
+        existing.center_name, existing.center_block, existing.invigilators_required = center_name, center_block, required
+    else:
+        db.session.add(ExamDutyCenter(event_id=event.id, center_name=center_name, center_no=center_no, center_block=center_block, invigilators_required=required))
+    db.session.commit()
+    return duty_redirect(event.id)
+
+
+@admin_bp.route("/admin/exam-duty-allocation/<int:event_id>/centers/import", methods=["POST"])
+def import_exam_duty_centers(event_id):
+    if "admin" not in session:
+        return redirect(url_for("routes.login"))
+    event = Event.query.get_or_404(event_id)
+    upload = request.files.get("centers_file")
+    if not upload or not upload.filename:
+        return duty_redirect(event.id, center_import_error="missing_file")
+    try:
+        frame = pd.read_csv(upload) if upload.filename.lower().endswith(".csv") else pd.read_excel(upload)
+    except Exception:
+        return duty_redirect(event.id, center_import_error="invalid_file")
+
+    frame.columns = [str(column).strip().lower().replace(" ", "_") for column in frame.columns]
+    created = updated = skipped = 0
+    for _, row in frame.iterrows():
+        center_name = row_value(row, "center_name", "exam_center_name", "name")
+        center_no = row_value(row, "center_no", "center_number", "exam_center_no", "exam_center_number")
+        center_block = row_value(row, "center_block", "exam_center_block", "block")
+        required_value = row_value(row, "invigilators_required", "required_invigilators", "invigilator_count", "no_of_invigilators")
+        try:
+            required = max(int(float(required_value)), 1)
+        except (TypeError, ValueError):
+            required = 0
+        if not center_name or not center_no or not center_block or not required:
+            skipped += 1
+            continue
+        center = ExamDutyCenter.query.filter_by(event_id=event.id, center_no=center_no).first()
+        if center:
+            center.center_name = center_name
+            center.center_block = center_block
+            center.invigilators_required = required
+            updated += 1
+        else:
+            db.session.add(ExamDutyCenter(
+                event_id=event.id,
+                center_name=center_name,
+                center_no=center_no,
+                center_block=center_block,
+                invigilators_required=required,
+            ))
+            created += 1
+    db.session.commit()
+    return duty_redirect(event.id, center_import_created=created, center_import_updated=updated, center_import_skipped=skipped)
+
+
+def duty_candidates(event, center):
+    allocated_teacher_ids = {
+        allocation.teacher_id for allocation in ExamDutyAllocation.query.filter_by(event_id=event.id).all()
+    }
+    teachers = ExamDutyTeacher.query.filter_by(event_id=event.id, is_active=True).filter(~ExamDutyTeacher.id.in_(allocated_teacher_ids or [-1])).all()
+    # Teachers from a different working block are selected first to avoid local-school assignments.
+    external = [teacher for teacher in teachers if teacher.working_block.strip().lower() != center.center_block.strip().lower()]
+    local = [teacher for teacher in teachers if teacher not in external]
+    random.shuffle(external)
+    random.shuffle(local)
+    return external + local
+
+
+def lottery_candidates(event):
+    allocated_teacher_ids = {
+        allocation.teacher_id for allocation in ExamDutyAllocation.query.filter_by(event_id=event.id).all()
+    }
+    teachers = ExamDutyTeacher.query.filter_by(event_id=event.id, is_active=True).filter(
+        ~ExamDutyTeacher.id.in_(allocated_teacher_ids or [-1])
+    ).all()
+    random.shuffle(teachers)
+    return teachers
+
+
+@admin_bp.route("/admin/exam-duty-allocation/<int:event_id>/allocate-lot", methods=["POST"])
+def allocate_exam_duty_lot(event_id):
+    if "admin" not in session:
+        return redirect(url_for("routes.login"))
+    event = Event.query.get_or_404(event_id)
+    center = ExamDutyCenter.query.filter_by(id=request.form.get("center_id", type=int), event_id=event.id).first()
+    if not center:
+        return duty_redirect(event.id, allocation_error="invalid_center")
+    current = ExamDutyAllocation.query.filter_by(event_id=event.id, center_id=center.id).count()
+    count = min(max(request.form.get("count", 1, type=int) or 1, 1), max(center.invigilators_required - current, 0))
+    # A lottery is a random draw from all eligible, unallocated teachers.
+    selected = lottery_candidates(event)[:count]
+    for teacher in selected:
+        db.session.add(ExamDutyAllocation(event_id=event.id, teacher_id=teacher.id, center_id=center.id, allocation_method="lot"))
+    db.session.commit()
+    return duty_redirect(event.id, lot_allocated=len(selected))
+
+
+@admin_bp.route("/admin/exam-duty-allocation/<int:event_id>/allocate-auto", methods=["POST"])
+def allocate_exam_duty_auto(event_id):
+    if "admin" not in session:
+        return redirect(url_for("routes.login"))
+    event = Event.query.get_or_404(event_id)
+    if request.form.get("replace_existing"):
+        ExamDutyAllocation.query.filter_by(event_id=event.id).delete()
+        db.session.flush()
+    allocated = 0
+    centers = ExamDutyCenter.query.filter_by(event_id=event.id).order_by(ExamDutyCenter.center_no).all()
+    for center in centers:
+        current = ExamDutyAllocation.query.filter_by(event_id=event.id, center_id=center.id).count()
+        slots = max(center.invigilators_required - current, 0)
+        for teacher in duty_candidates(event, center)[:slots]:
+            db.session.add(ExamDutyAllocation(event_id=event.id, teacher_id=teacher.id, center_id=center.id, allocation_method="auto"))
+            db.session.flush()
+            allocated += 1
+    db.session.commit()
+    return duty_redirect(event.id, auto_allocated=allocated)
+
+
+@admin_bp.route("/admin/exam-duty-allocation/<int:event_id>/allocate-manual", methods=["POST"])
+def allocate_exam_duty_manual(event_id):
+    if "admin" not in session:
+        return redirect(url_for("routes.login"))
+    event = Event.query.get_or_404(event_id)
+    teacher = ExamDutyTeacher.query.filter_by(id=request.form.get("teacher_id", type=int), event_id=event.id).first()
+    center = ExamDutyCenter.query.filter_by(id=request.form.get("center_id", type=int), event_id=event.id).first()
+    if not teacher or not center or ExamDutyAllocation.query.filter_by(event_id=event.id, teacher_id=teacher.id).first():
+        return duty_redirect(event.id, allocation_error="invalid_teacher")
+    if ExamDutyAllocation.query.filter_by(event_id=event.id, center_id=center.id).count() >= center.invigilators_required:
+        return duty_redirect(event.id, allocation_error="center_full")
+    db.session.add(ExamDutyAllocation(event_id=event.id, teacher_id=teacher.id, center_id=center.id, allocation_method="manual"))
+    db.session.commit()
+    return duty_redirect(event.id)
+
+
+@admin_bp.route("/admin/events/<int:event_id>/participants/import", methods=["POST"])
+def import_event_participants(event_id):
+    if "admin" not in session:
+        return redirect(url_for("routes.login"))
+
+    event = Event.query.get_or_404(event_id)
+    upload = request.files.get("participants_file")
+    if not event.participant_bulk_upload_enabled or not upload or not upload.filename:
+        return redirect(url_for("admin.edit_event", id=event.id, participant_import_error="missing_file"))
+
+    try:
+        frame = pd.read_csv(upload) if upload.filename.lower().endswith(".csv") else pd.read_excel(upload)
+    except Exception:
+        return redirect(url_for("admin.edit_event", id=event.id, participant_import_error="invalid_file"))
+
+    frame.columns = [str(column).strip().lower().replace(" ", "_") for column in frame.columns]
+    created = updated = skipped = 0
+    for _, row in frame.iterrows():
+        name = row_value(row, "name", "participant_name", "teacher_name", "student_name")
+        mobile = row_value(row, "mobile", "mobile_number", "phone")
+        if not name or not mobile:
+            skipped += 1
+            continue
+
+        participant = Participant.query.filter_by(event_id=event.id, mobile=mobile).first()
+        if not participant:
+            participant = Participant(
+                reg_id=registration_id_for_event(event), event_id=event.id,
+                teacher_name=name, mobile=mobile,
+                email=row_value(row, "email", "email_address") or f"{mobile}@participant.local",
+                salutation=row_value(row, "salutation"),
+                designation=row_value(row, "designation") or "Participant",
+                subject=row_value(row, "subject") or "",
+                school_name=row_value(row, "school_name", "school", "organization") or "",
+                school_area=row_value(row, "school_area", "area", "place") or "",
+                block=row_value(row, "block") or "",
+                extra_data=json.dumps({
+                    key: {"label": key.replace("_", " ").title(), "value": row_value(row, key)}
+                    for key in frame.columns
+                    if key not in {"name", "participant_name", "teacher_name", "student_name", "mobile", "mobile_number", "phone", "email", "email_address", "salutation", "designation", "subject", "school_name", "school", "organization", "school_area", "area", "place", "block"} and row_value(row, key)
+                }),
+            )
+            db.session.add(participant)
+            db.session.flush()
+            created += 1
+        else:
+            participant.teacher_name = name
+            participant.email = row_value(row, "email", "email_address") or participant.email
+            participant.designation = row_value(row, "designation") or participant.designation
+            updated += 1
+
+        # Every imported participant receives the same code used by QR attendance.
+        generate_participant_code(event, participant)
+
+    db.session.commit()
+    return redirect(url_for("admin.edit_event", id=event.id, participant_import_created=created, participant_import_updated=updated, participant_import_skipped=skipped))
 
 
 @admin_bp.route("/admin/events/<int:event_id>/exam-users/import", methods=["POST"])

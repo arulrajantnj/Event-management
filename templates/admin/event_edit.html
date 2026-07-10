@@ -92,6 +92,36 @@
 
                         <div class="col-12">
                             <div class="border rounded-4 p-3 bg-light">
+                                <h6 class="mb-3">Participant Entry</h6>
+                                <div class="form-check mb-2"><input class="form-check-input" type="checkbox" name="public_registration_enabled" id="public_registration_enabled" {% if event.public_registration_enabled %}checked{% endif %}><label class="form-check-label" for="public_registration_enabled">Enable participant self-registration</label></div>
+                                <div class="form-check"><input class="form-check-input" type="checkbox" name="participant_bulk_upload_enabled" id="participant_bulk_upload_enabled" {% if event.participant_bulk_upload_enabled %}checked{% endif %}><label class="form-check-label" for="participant_bulk_upload_enabled">Enable participant bulk upload (Excel / CSV)</label></div>
+                            </div>
+                        </div>
+
+                        <div class="col-12">
+                            <div class="border rounded-4 p-3 bg-light">
+                                <h6 class="mb-3">Event Details Shown to Participants</h6>
+                                <div class="row g-3">
+                                    <div class="col-md-6"><div class="form-check"><input class="form-check-input" type="checkbox" name="show_venue" id="show_venue" {% if event.show_venue %}checked{% endif %}><label class="form-check-label" for="show_venue">Show venue</label></div><input name="venue" class="form-control mt-1" value="{{ event.venue or '' }}" placeholder="Venue"></div>
+                                    <div class="col-md-6"><div class="form-check"><input class="form-check-input" type="checkbox" name="show_event_date" id="show_event_date" {% if event.show_event_date %}checked{% endif %}><label class="form-check-label" for="show_event_date">Show date</label></div><input type="date" name="event_date" class="form-control mt-1" value="{{ event.event_date.isoformat() if event.event_date else '' }}"></div>
+                                    <div class="col-md-6"><div class="form-check"><input class="form-check-input" type="checkbox" name="show_event_time" id="show_event_time" {% if event.show_event_time %}checked{% endif %}><label class="form-check-label" for="show_event_time">Show time</label></div><input name="event_time" class="form-control mt-1" value="{{ event.event_time or '' }}" placeholder="e.g. 10:00 AM"></div>
+                                    <div class="col-md-6"><div class="form-check"><input class="form-check-input" type="checkbox" name="show_chief_guest" id="show_chief_guest" {% if event.show_chief_guest %}checked{% endif %}><label class="form-check-label" for="show_chief_guest">Show chief guest</label></div><input name="chief_guest" class="form-control mt-1" value="{{ event.chief_guest or '' }}" placeholder="Chief guest name"></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {% if request.args.get('participant_import_created') is not none %}
+                        <div class="col-12"><div class="alert alert-success mb-0">Participants imported: {{ request.args.get('participant_import_created', 0) }} created, {{ request.args.get('participant_import_updated', 0) }} updated, {{ request.args.get('participant_import_skipped', 0) }} skipped. QR / barcode codes were generated.</div></div>
+                        {% elif request.args.get('participant_import_error') %}
+                        <div class="col-12"><div class="alert alert-danger mb-0">Could not import the participant file. Upload a valid Excel or CSV file after enabling bulk upload.</div></div>
+                        {% endif %}
+
+                        {% if event.participant_bulk_upload_enabled %}
+                        <div class="col-12"><div class="border rounded-4 p-3 bg-light"><h6>Bulk Upload Participants</h6><div class="row g-2 align-items-end"><div class="col-md-8"><label class="form-label">Excel / CSV file</label><input form="participant-import-form" type="file" name="participants_file" class="form-control" accept=".xlsx,.xls,.csv" required><small class="text-muted">Required: name and mobile. Optional: email, salutation, designation, subject, school_name, school_area, block.</small></div><div class="col-md-4"><button form="participant-import-form" class="btn btn-primary w-100">Upload & Generate QR Codes</button></div></div></div></div>
+                        {% endif %}
+
+                        <div class="col-12">
+                            <div class="border rounded-4 p-3 bg-light">
                                 <h6 class="mb-3">Photo Settings</h6>
                                 <div class="row g-2">
                                     <div class="col-md-6">
@@ -487,6 +517,8 @@
         </div>
     </div>
 </div>
+
+<form id="participant-import-form" method="POST" action="{{ url_for('admin.import_event_participants', event_id=event.id) }}" enctype="multipart/form-data"></form>
 
 {% endblock %}
 

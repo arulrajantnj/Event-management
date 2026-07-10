@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}Children's Competitions{% endblock %}
+{% block content %}
+<main class="container py-5" style="max-width:850px">
+  <div class="card shadow-sm border-0"><div class="card-body p-4 p-md-5">
+    <h2 class="mb-1">Children's Competitions</h2>
+    <p class="text-muted">Choose a planned competition. Registration then continues through the main registration form with its normal rules, QR/barcode and attendance support.</p>
+    {% if not competitions %}
+    <div class="alert alert-info">No competition registrations are open right now.</div>
+    {% else %}
+    <div class="row g-3 mt-1">
+      {% for item in competitions %}
+      <div class="col-md-6"><div class="border rounded-4 p-4 h-100 bg-light"><h4>{{ item.name }}</h4>{% if item.category %}<p class="text-primary mb-2">{{ item.category }}</p>{% endif %}<p class="text-muted">{{ item.description or 'Competition registration is open.' }}</p><a class="btn btn-primary" href="{{ url_for('routes.register', event=item.event.slug, competition_mode=1) }}">Continue to Main Registration</a></div></div>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </div></div>
+</main>
+{% endblock %}

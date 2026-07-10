@@ -71,6 +71,10 @@
                         <input class="form-check-input" type="checkbox" name="show_result_immediately" id="show_result_immediately" {% if exam.show_result_immediately %}checked{% endif %}>
                         <label class="form-check-label" for="show_result_immediately">Show result immediately</label>
                     </div>
+                    <div class="form-check mt-2">
+                        <input class="form-check-input" type="checkbox" name="public_results_published" id="public_results_published" {% if exam.public_results_published %}checked{% endif %}>
+                        <label class="form-check-label" for="public_results_published">Approve and publish result, marks and rank list publicly</label>
+                    </div>
                     <div class="form-check mt-2 mb-3">
                         <input class="form-check-input" type="checkbox" name="is_active" id="is_active" {% if exam.is_active %}checked{% endif %}>
                         <label class="form-check-label" for="is_active">Published exam</label>

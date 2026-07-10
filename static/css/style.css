@@ -1554,12 +1554,20 @@ box-shadow:0 10px 30px rgba(0,0,0,.25);
     color:#119c52 !important;
 }
 
+.modern-navbar .competition-link{
+    color:#0f766e !important;
+}
+
 .modern-navbar .exam-link{
     color:#7c3aed !important;
 }
 
 .modern-navbar .downloads-link{
     color:#e85d04 !important;
+}
+
+.modern-navbar .results-link{
+    color:#b45309 !important;
 }
 
 .modern-navbar .admin-link{
@@ -1584,6 +1592,11 @@ box-shadow:0 10px 30px rgba(0,0,0,.25);
     background:linear-gradient(135deg,#16a34a,#14b8a6);
 }
 
+.modern-navbar .competition-link:hover,
+.modern-navbar .competition-link:focus{
+    background:linear-gradient(135deg,#0f766e,#0ea5e9);
+}
+
 .modern-navbar .exam-link:hover,
 .modern-navbar .exam-link:focus{
     background:linear-gradient(135deg,#7c3aed,#2563eb);
@@ -1592,6 +1605,11 @@ box-shadow:0 10px 30px rgba(0,0,0,.25);
 .modern-navbar .downloads-link:hover,
 .modern-navbar .downloads-link:focus{
     background:linear-gradient(135deg,#f97316,#eab308);
+}
+
+.modern-navbar .results-link:hover,
+.modern-navbar .results-link:focus{
+    background:linear-gradient(135deg,#b45309,#f59e0b);
 }
 
 .modern-navbar .admin-link:hover,
@@ -2419,12 +2437,20 @@ button{
     background:#eafaf1;
 }
 
+.modern-navbar .competition-link{
+    background:#e6fffb;
+}
+
 .modern-navbar .exam-link{
     background:#f2ecff;
 }
 
 .modern-navbar .downloads-link{
     background:#fff3e6;
+}
+
+.modern-navbar .results-link{
+    background:#fff7df;
 }
 
 .modern-navbar .admin-link{

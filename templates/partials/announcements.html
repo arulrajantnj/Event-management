@@ -5,12 +5,12 @@
         </div>
         <div class="ticker-track-wrap">
             <div class="ticker-track">
-                {% if ticker_messages %}
-                    {% for message in ticker_messages %}
-                    <span class="ticker-item">{{ message }}</span>
+                {% if ticker_items %}
+                    {% for item in ticker_items %}
+                    <a class="ticker-item" href="{{ item.url }}">{{ item.message }}</a>
                     {% endfor %}
-                    {% for message in ticker_messages %}
-                    <span class="ticker-item">{{ message }}</span>
+                    {% for item in ticker_items %}
+                    <a class="ticker-item" href="{{ item.url }}">{{ item.message }}</a>
                     {% endfor %}
                 {% else %}
                     <span class="ticker-item">New event registrations will appear here automatically.</span>

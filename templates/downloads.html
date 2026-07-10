@@ -109,6 +109,22 @@ Download Certificate
         </div>
         {% endif %}
 
+        {% if acknowledgement_ready %}
+        <form method="POST" action="{{ url_for('routes.download_acknowledgement_secure') }}" class="mb-2">
+            <input type="hidden" name="reg_id" value="{{ participant.reg_id }}">
+            <input type="hidden" name="mobile" value="{{ participant.mobile }}">
+            <button class="btn btn-info text-white w-100"><i class="bi bi-file-earmark-text"></i> Download Acknowledgement</button>
+        </form>
+        {% endif %}
+
+        {% if qr_ready %}
+        <form method="POST" action="{{ url_for('routes.download_code_secure') }}">
+            <input type="hidden" name="reg_id" value="{{ participant.reg_id }}">
+            <input type="hidden" name="mobile" value="{{ participant.mobile }}">
+            <button class="btn btn-outline-primary w-100"><i class="bi bi-qr-code"></i> Download {{ 'Barcode' if participant.event.code_type == 'barcode' else 'QR Code' }}</button>
+        </form>
+        {% endif %}
+
     </div>
 </div>
 

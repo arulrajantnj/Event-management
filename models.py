@@ -37,6 +37,28 @@ class Event(db.Model):
         nullable=False
     )
 
+    # Public registrations and spreadsheet imports can be enabled independently.
+    public_registration_enabled = db.Column(
+        db.Boolean,
+        default=True,
+        nullable=False
+    )
+
+    participant_bulk_upload_enabled = db.Column(
+        db.Boolean,
+        default=False,
+        nullable=False
+    )
+
+    show_venue = db.Column(db.Boolean, default=False, nullable=False)
+    venue = db.Column(db.String(255))
+    show_event_date = db.Column(db.Boolean, default=False, nullable=False)
+    event_date = db.Column(db.Date)
+    show_event_time = db.Column(db.Boolean, default=False, nullable=False)
+    event_time = db.Column(db.String(100))
+    show_chief_guest = db.Column(db.Boolean, default=False, nullable=False)
+    chief_guest = db.Column(db.String(255))
+
     requires_photo = db.Column(
         db.Boolean,
         default=True,
@@ -589,6 +611,125 @@ class ScannerUser(db.Model):
 
 
 # ==========================================================
+# EXAM DUTY ALLOCATION
+# ==========================================================
+class ExamDutyTeacher(db.Model):
+    __tablename__ = "exam_duty_teachers"
+    __table_args__ = (
+        db.UniqueConstraint("event_id", "teacher_id", name="uq_exam_duty_teacher_event_id"),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    event_id = db.Column(db.Integer, db.ForeignKey("events.id"), nullable=False)
+    teacher_id = db.Column(db.String(80), nullable=False)
+    teacher_name = db.Column(db.String(150), nullable=False)
+    mobile = db.Column(db.String(20))
+    designation = db.Column(db.String(120))
+    working_school = db.Column(db.String(220))
+    udise_code = db.Column(db.String(30))
+    working_block = db.Column(db.String(120))
+    is_active = db.Column(db.Boolean, default=True, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    event = db.relationship("Event")
+    allocations = db.relationship("ExamDutyAllocation", back_populates="teacher", cascade="all, delete-orphan")
+
+
+class ExamDutyCenter(db.Model):
+    __tablename__ = "exam_duty_centers"
+    __table_args__ = (
+        db.UniqueConstraint("event_id", "center_no", name="uq_exam_duty_center_number"),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    event_id = db.Column(db.Integer, db.ForeignKey("events.id"), nullable=False)
+    center_name = db.Column(db.String(220), nullable=False)
+    center_no = db.Column(db.String(80), nullable=False)
+    center_block = db.Column(db.String(120), nullable=False)
+    invigilators_required = db.Column(db.Integer, nullable=False, default=1)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    event = db.relationship("Event")
+    allocations = db.relationship("ExamDutyAllocation", back_populates="center", cascade="all, delete-orphan")
+
+
+class ExamDutyAllocation(db.Model):
+    __tablename__ = "exam_duty_allocations"
+    __table_args__ = (
+        db.UniqueConstraint("event_id", "teacher_id", name="uq_exam_duty_teacher_allocation"),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    event_id = db.Column(db.Integer, db.ForeignKey("events.id"), nullable=False)
+    teacher_id = db.Column(db.Integer, db.ForeignKey("exam_duty_teachers.id"), nullable=False)
+    center_id = db.Column(db.Integer, db.ForeignKey("exam_duty_centers.id"), nullable=False)
+    allocation_method = db.Column(db.String(20), nullable=False, default="manual")
+    status = db.Column(db.String(20), nullable=False, default="draft")
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    event = db.relationship("Event")
+    teacher = db.relationship("ExamDutyTeacher", back_populates="allocations")
+    center = db.relationship("ExamDutyCenter", back_populates="allocations")
+
+
+# ==========================================================
+# CHILDREN'S COMPETITIONS
+# ==========================================================
+class Competition(db.Model):
+    __tablename__ = "competitions"
+
+    id = db.Column(db.Integer, primary_key=True)
+    event_id = db.Column(db.Integer, db.ForeignKey("events.id"), nullable=False)
+    name = db.Column(db.String(180), nullable=False)
+    category = db.Column(db.String(100))
+    description = db.Column(db.Text)
+    registration_enabled = db.Column(db.Boolean, default=True, nullable=False)
+    results_published = db.Column(db.Boolean, default=False, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    event = db.relationship("Event")
+    registrations = db.relationship("CompetitionRegistration", back_populates="competition", cascade="all, delete-orphan")
+    judges = db.relationship("CompetitionJudge", back_populates="competition", cascade="all, delete-orphan")
+
+
+class CompetitionRegistration(db.Model):
+    __tablename__ = "competition_registrations"
+    __table_args__ = (db.UniqueConstraint("competition_id", "mobile", "participant_name", name="uq_competition_registration"),)
+
+    id = db.Column(db.Integer, primary_key=True)
+    competition_id = db.Column(db.Integer, db.ForeignKey("competitions.id"), nullable=False)
+    registration_no = db.Column(db.String(32), unique=True, nullable=False)
+    participant_name = db.Column(db.String(150), nullable=False)
+    gender = db.Column(db.String(20), nullable=False, default="Not specified")
+    age = db.Column(db.Integer)
+    mobile = db.Column(db.String(20))
+    school_name = db.Column(db.String(220))
+    class_name = db.Column(db.String(60))
+    is_present = db.Column(db.Boolean, default=False, nullable=False)
+    score = db.Column(db.Float)
+    rank = db.Column(db.String(40), default="Participant Certificate", nullable=False)
+    judge_submitted_at = db.Column(db.DateTime)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    competition = db.relationship("Competition", back_populates="registrations")
+
+
+class CompetitionJudge(db.Model):
+    __tablename__ = "competition_judges"
+    __table_args__ = (db.UniqueConstraint("username", name="uq_competition_judge_username"),)
+
+    id = db.Column(db.Integer, primary_key=True)
+    competition_id = db.Column(db.Integer, db.ForeignKey("competitions.id"), nullable=False)
+    name = db.Column(db.String(150), nullable=False)
+    username = db.Column(db.String(80), nullable=False)
+    password_hash = db.Column(db.String(255), nullable=False)
+    is_active = db.Column(db.Boolean, default=True, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    competition = db.relationship("Competition", back_populates="judges")
+
+
+# ==========================================================
 # EVENT REGISTRATION FIELDS
 # ==========================================================
 class EventField(db.Model):
@@ -839,6 +980,14 @@ class OnlineExam(db.Model):
     show_result_immediately = db.Column(
         db.Boolean,
         default=True,
+        nullable=False
+    )
+
+    # Results remain private until the administrator has reviewed and
+    # explicitly approved them for the public Results page.
+    public_results_published = db.Column(
+        db.Boolean,
+        default=False,
         nullable=False
     )
 

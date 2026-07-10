@@ -173,6 +173,18 @@ Registration ID :
 </div>
 {% endif %}
 
+{% if participant.event and (participant.event.show_venue or participant.event.show_event_date or participant.event.show_event_time or participant.event.show_chief_guest) %}
+<div class="alert alert-info">
+    <strong>Event Details</strong>
+    <div class="mt-1">
+        {% if participant.event.show_venue and participant.event.venue %}<span class="me-3"><strong>Venue:</strong> {{ participant.event.venue }}</span>{% endif %}
+        {% if participant.event.show_event_date and participant.event.event_date %}<span class="me-3"><strong>Date:</strong> {{ participant.event.event_date.strftime('%d-%m-%Y') }}</span>{% endif %}
+        {% if participant.event.show_event_time and participant.event.event_time %}<span class="me-3"><strong>Time:</strong> {{ participant.event.event_time }}</span>{% endif %}
+        {% if participant.event.show_chief_guest and participant.event.chief_guest %}<span><strong>Chief Guest:</strong> {{ participant.event.chief_guest }}</span>{% endif %}
+    </div>
+</div>
+{% endif %}
+
 {% if participant.event and participant.event.acknowledgement_enabled and (participant.event.sponsor_brand or participant.event.sponsor_logo or participant.event.sponsor_image) %}
 {% set sponsor_fit = participant.event.sponsor_image_fit or 'contain' %}
 {% set logo_position = participant.event.sponsor_logo_position or 'left' %}
@@ -242,9 +254,9 @@ Registration ID :
 <img
 src="{{ url_for('static', filename='uploads/' + participant.photo) }}"
 class="participant-photo">
-{% else %}
+{% elif participant.event.collect_photo %}
 <div class="border rounded-4 p-4 bg-light text-muted">
-    Photo upload was not required for this event.
+    No photo was uploaded.
 </div>
 {% endif %}
 

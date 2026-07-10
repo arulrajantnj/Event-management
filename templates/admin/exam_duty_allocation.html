@@ -1,0 +1,68 @@
+{% extends "admin/admin_base.html" %}
+{% block title %}Exam Duty Allocation{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-end gap-3 mb-4">
+    <div><h3 class="mb-1">Exam Duty Allocation</h3><p class="text-muted mb-0">Teacher ID is the unique staff key; UDISE code identifies the working school.</p></div>
+    <form method="GET"><select name="event_id" class="form-select" onchange="this.form.submit()"><option value="">Choose event</option>{% for item in events %}<option value="{{ item.id }}" {% if event and item.id == event.id %}selected{% endif %}>{{ item.name }}</option>{% endfor %}</select></form>
+</div>
+
+{% if event %}
+{% if request.args.get('teacher_import_created') is not none %}<div class="alert alert-success">Teachers imported: {{ request.args.get('teacher_import_created', 0) }} created, {{ request.args.get('teacher_import_updated', 0) }} updated, {{ request.args.get('teacher_import_skipped', 0) }} skipped.</div>{% endif %}
+{% if request.args.get('teacher_import_error') %}<div class="alert alert-danger">Upload a valid Excel or CSV file with Teacher ID, name, UDISE code and working block.</div>{% endif %}
+{% if request.args.get('center_import_created') is not none %}<div class="alert alert-success">Exam centers imported: {{ request.args.get('center_import_created', 0) }} created, {{ request.args.get('center_import_updated', 0) }} updated, {{ request.args.get('center_import_skipped', 0) }} skipped.</div>{% endif %}
+{% if request.args.get('center_import_error') %}<div class="alert alert-danger">Upload a valid Excel or CSV file with center name, center number, center block, and required invigilators.</div>{% endif %}
+{% if request.args.get('allocation_error') %}<div class="alert alert-danger">Allocation could not be completed: the teacher is already assigned, the center is full, or the selected record is invalid.</div>{% endif %}
+{% if request.args.get('auto_allocated') is not none %}<div class="alert alert-success">Automatic allocation completed: {{ request.args.get('auto_allocated', 0) }} invigilator(s) assigned.</div>{% endif %}
+{% if request.args.get('lot_allocated') is not none %}<div class="alert alert-success">Lottery allocation completed: {{ request.args.get('lot_allocated', 0) }} invigilator(s) assigned.</div>{% endif %}
+
+<div class="row g-3 mb-4">
+    <div class="col-md-4"><div class="card text-bg-primary"><div class="card-body"><div>Eligible Teachers</div><h2>{{ teachers|length }}</h2></div></div></div>
+    <div class="col-md-4"><div class="card text-bg-success"><div class="card-body"><div>Allocated Invigilators</div><h2>{{ allocated_count }} / {{ required_count }}</h2></div></div></div>
+    <div class="col-md-4"><div class="card text-bg-dark"><div class="card-body"><div>Exam Centers</div><h2>{{ centers|length }}</h2></div></div></div>
+</div>
+
+<div class="row g-4">
+<div class="col-lg-4">
+    <div class="card mb-4"><div class="card-header bg-primary text-white">Import Teacher Data</div><div class="card-body">
+        <form method="POST" action="{{ url_for('admin.import_exam_duty_teachers', event_id=event.id) }}" enctype="multipart/form-data">
+            <input type="file" name="teachers_file" class="form-control mb-3" accept=".xlsx,.xls,.csv" required>
+            <p class="small text-muted">Required columns: <code>teacher_id</code>, <code>teacher_name</code>, <code>udise_code</code>, <code>working_block</code>. Optional: <code>working_school</code>, <code>designation</code>, <code>mobile</code>.</p>
+            <button class="btn btn-primary w-100">Import Teachers</button>
+        </form>
+    </div></div>
+    <div class="card mb-4"><div class="card-header bg-success text-white">Add Exam Center</div><div class="card-body">
+        <form method="POST" action="{{ url_for('admin.add_exam_duty_center', event_id=event.id) }}">
+            <input name="center_name" class="form-control mb-2" placeholder="Exam center name" required>
+            <input name="center_no" class="form-control mb-2" placeholder="Center number" required>
+            <input name="center_block" class="form-control mb-2" placeholder="Exam center block" required>
+            <input type="number" name="invigilators_required" class="form-control mb-3" min="1" value="1" required>
+            <button class="btn btn-success w-100">Save Center</button>
+        </form>
+    </div></div>
+    <div class="card mb-4"><div class="card-header bg-success text-white">Import Exam Centers</div><div class="card-body">
+        <form method="POST" action="{{ url_for('admin.import_exam_duty_centers', event_id=event.id) }}" enctype="multipart/form-data">
+            <input type="file" name="centers_file" class="form-control mb-3" accept=".xlsx,.xls,.csv" required>
+            <p class="small text-muted">Required columns: <code>center_name</code>, <code>center_no</code>, <code>center_block</code>, <code>invigilators_required</code>.</p>
+            <button class="btn btn-outline-success w-100">Import Centers</button>
+        </form>
+    </div></div>
+</div>
+
+<div class="col-lg-8">
+    <div class="card mb-4"><div class="card-header bg-dark text-white">Allocation Controls</div><div class="card-body">
+        <form method="POST" action="{{ url_for('admin.allocate_exam_duty_auto', event_id=event.id) }}" class="mb-3">
+            <div class="form-check mb-2"><input class="form-check-input" type="checkbox" name="replace_existing" id="replace_existing"><label class="form-check-label" for="replace_existing">Replace existing allocations</label></div>
+            <button class="btn btn-dark">Auto Allocate by Block</button>
+            <span class="small text-muted ms-2">Teachers from a different working block are prioritized; same-block staff are used only when necessary.</span>
+        </form>
+        <div class="row g-3">
+            <div class="col-md-6"><form method="POST" action="{{ url_for('admin.allocate_exam_duty_lot', event_id=event.id) }}" class="border rounded p-3 h-100"><strong>Manual Selection by Lot</strong><select name="center_id" class="form-select my-2" required><option value="">Select center</option>{% for center in centers %}<option value="{{ center.id }}">{{ center.center_no }} — {{ center.center_name }}</option>{% endfor %}</select><input type="number" name="count" class="form-control mb-2" value="1" min="1"><button class="btn btn-warning w-100">Draw Lot</button></form></div>
+            <div class="col-md-6"><form method="POST" action="{{ url_for('admin.allocate_exam_duty_manual', event_id=event.id) }}" class="border rounded p-3 h-100"><strong>Manual Assignment</strong><select name="teacher_id" class="form-select my-2" required><option value="">Select unallocated teacher</option>{% for teacher in teachers if not teacher.allocations %}<option value="{{ teacher.id }}">{{ teacher.teacher_name }} ({{ teacher.teacher_id }})</option>{% endfor %}</select><select name="center_id" class="form-select mb-2" required><option value="">Select center</option>{% for center in centers %}<option value="{{ center.id }}">{{ center.center_no }} — {{ center.center_name }}</option>{% endfor %}</select><button class="btn btn-outline-primary w-100">Assign Teacher</button></form></div>
+        </div>
+    </div></div>
+    <div class="card"><div class="card-header">Centers and Allocations</div><div class="table-responsive"><table class="table table-hover mb-0"><thead><tr><th>Center</th><th>Block</th><th>Required</th><th>Allocated</th><th>Invigilators</th></tr></thead><tbody>{% for center in centers %}{% set center_allocations = center.allocations %}<tr><td><strong>{{ center.center_name }}</strong><br><small>{{ center.center_no }}</small></td><td>{{ center.center_block }}</td><td>{{ center.invigilators_required }}</td><td>{{ center_allocations|length }}</td><td>{% for allocation in center_allocations %}<div>{{ allocation.teacher.teacher_name }} <small class="text-muted">({{ allocation.teacher.teacher_id }}, {{ allocation.allocation_method }})</small></div>{% else %}<span class="text-muted">Not allocated</span>{% endfor %}</td></tr>{% else %}<tr><td colspan="5" class="text-center text-muted py-4">Add exam centers before allocating invigilators.</td></tr>{% endfor %}</tbody></table></div></div>
+</div></div>
+
+<div class="card mt-4"><div class="card-header">Imported Teachers</div><div class="table-responsive"><table class="table table-sm table-striped mb-0"><thead><tr><th>Teacher ID</th><th>Name</th><th>Designation</th><th>Working School</th><th>UDISE</th><th>Working Block</th></tr></thead><tbody>{% for teacher in teachers %}<tr><td>{{ teacher.teacher_id }}</td><td>{{ teacher.teacher_name }}</td><td>{{ teacher.designation or '-' }}</td><td>{{ teacher.working_school or '-' }}</td><td>{{ teacher.udise_code }}</td><td>{{ teacher.working_block }}</td></tr>{% else %}<tr><td colspan="6" class="text-center text-muted py-4">No teacher data uploaded.</td></tr>{% endfor %}</tbody></table></div></div>
+{% else %}<div class="alert alert-info">Create an event first, then choose it here to manage duty allocation.</div>{% endif %}
+{% endblock %}
