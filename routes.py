@@ -113,6 +113,7 @@ def home():
     events = Event.query.filter_by(
         is_active=True
     ).order_by(
+        Event.hero_priority.desc(),
         Event.created_at.desc(),
         Event.id.desc()
     ).all()

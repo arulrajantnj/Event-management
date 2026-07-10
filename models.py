@@ -220,6 +220,12 @@ class Event(db.Model):
         default="contain"
     )
 
+    hero_priority = db.Column(
+        db.Integer,
+        default=0,
+        nullable=False
+    )
+
     qr_sharing_enabled = db.Column(
         db.Boolean,
         default=True,

@@ -63,3 +63,59 @@
 .manual-result-card{
     height:100%;
 }
+
+.attendance-toolbar{
+    overflow-x:auto;
+    padding-bottom:4px;
+}
+
+.attendance-toolbar .btn{
+    flex:0 0 auto;
+}
+
+@media(max-width:768px){
+    .attendance-stat{
+        min-height:86px;
+        padding:14px;
+        border-radius:8px;
+    }
+
+    .attendance-stat i{
+        font-size:26px;
+    }
+
+    .attendance-chart{
+        min-height:230px;
+        border-radius:8px;
+    }
+
+    .qr-reader{
+        min-height:260px;
+        border-radius:8px;
+    }
+
+    .attendance-person-photo{
+        width:92px;
+        height:108px;
+        border-radius:8px;
+    }
+
+    .attendance-result .card-body,
+    .manual-result-card .card-body{
+        padding:14px;
+    }
+
+    .manual-search-group{
+        display:block;
+    }
+
+    .manual-search-group .form-control,
+    .manual-search-group .btn{
+        width:100%;
+        border-radius:8px !important;
+    }
+
+    .manual-search-group .btn{
+        margin-top:8px;
+    }
+}

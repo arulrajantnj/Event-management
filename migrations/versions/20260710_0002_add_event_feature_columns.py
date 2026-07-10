@@ -223,6 +223,12 @@ EVENT_COLUMNS = {
         nullable=True,
         server_default="contain",
     ),
+    "hero_priority": sa.Column(
+        "hero_priority",
+        sa.Integer(),
+        nullable=False,
+        server_default="0",
+    ),
     "qr_sharing_enabled": sa.Column(
         "qr_sharing_enabled",
         sa.Boolean(),
@@ -254,7 +260,90 @@ def existing_column_names(table_name):
     return {column["name"] for column in inspector.get_columns(table_name)}
 
 
+def existing_table_names():
+    inspector = sa.inspect(op.get_bind())
+    return set(inspector.get_table_names())
+
+
+def create_attendance_tables():
+    existing_tables = existing_table_names()
+
+    if "attendance" not in existing_tables:
+        op.create_table(
+            "attendance",
+            sa.Column("id", sa.Integer(), nullable=False),
+            sa.Column("participant_id", sa.Integer(), nullable=False),
+            sa.Column("event_id", sa.Integer(), nullable=False),
+            sa.Column("attendance_date", sa.Date(), nullable=False),
+            sa.Column("attendance_time", sa.DateTime(), nullable=False),
+            sa.Column("status", sa.String(length=30), nullable=False),
+            sa.Column("method", sa.String(length=20), nullable=False),
+            sa.Column("remarks", sa.Text(), nullable=True),
+            sa.Column("marked_by", sa.String(length=80), nullable=True),
+            sa.Column("created_at", sa.DateTime(), nullable=True),
+            sa.Column("updated_at", sa.DateTime(), nullable=True),
+            sa.ForeignKeyConstraint(["event_id"], ["events.id"]),
+            sa.ForeignKeyConstraint(["participant_id"], ["participants.id"]),
+            sa.PrimaryKeyConstraint("id"),
+            sa.UniqueConstraint(
+                "participant_id",
+                "attendance_date",
+                name="uq_attendance_participant_date",
+            ),
+        )
+        op.create_index(
+            "idx_attendance_event_date",
+            "attendance",
+            ["event_id", "attendance_date"],
+        )
+
+    if "attendance_logs" not in existing_tables:
+        op.create_table(
+            "attendance_logs",
+            sa.Column("id", sa.Integer(), nullable=False),
+            sa.Column("participant_id", sa.Integer(), nullable=True),
+            sa.Column("event_id", sa.Integer(), nullable=True),
+            sa.Column("action", sa.String(length=40), nullable=False),
+            sa.Column("status", sa.String(length=30), nullable=True),
+            sa.Column("method", sa.String(length=20), nullable=True),
+            sa.Column("scan_text", sa.Text(), nullable=True),
+            sa.Column("message", sa.String(length=255), nullable=True),
+            sa.Column("admin_user", sa.String(length=80), nullable=True),
+            sa.Column("ip_address", sa.String(length=45), nullable=True),
+            sa.Column("created_at", sa.DateTime(), nullable=True),
+            sa.ForeignKeyConstraint(["event_id"], ["events.id"]),
+            sa.ForeignKeyConstraint(["participant_id"], ["participants.id"]),
+            sa.PrimaryKeyConstraint("id"),
+        )
+        op.create_index(
+            "idx_attendance_logs_event_created",
+            "attendance_logs",
+            ["event_id", "created_at"],
+        )
+
+    if "scanner_users" not in existing_tables:
+        op.create_table(
+            "scanner_users",
+            sa.Column("id", sa.Integer(), nullable=False),
+            sa.Column("name", sa.String(length=120), nullable=False),
+            sa.Column("username", sa.String(length=80), nullable=False),
+            sa.Column("password_hash", sa.String(length=255), nullable=False),
+            sa.Column("event_id", sa.Integer(), nullable=True),
+            sa.Column("is_approved", sa.Boolean(), nullable=False, server_default=sa.false()),
+            sa.Column("is_active", sa.Boolean(), nullable=False, server_default=sa.true()),
+            sa.Column("approved_by", sa.String(length=80), nullable=True),
+            sa.Column("approved_at", sa.DateTime(), nullable=True),
+            sa.Column("last_login_at", sa.DateTime(), nullable=True),
+            sa.Column("created_at", sa.DateTime(), nullable=True),
+            sa.ForeignKeyConstraint(["event_id"], ["events.id"]),
+            sa.PrimaryKeyConstraint("id"),
+            sa.UniqueConstraint("username", name="uq_scanner_users_username"),
+        )
+
+
 def upgrade():
+    create_attendance_tables()
+
     existing_columns = existing_column_names("events")
 
     for name, column in EVENT_COLUMNS.items():
@@ -268,3 +357,8 @@ def downgrade():
     for name in reversed(EVENT_COLUMNS):
         if name in existing_columns:
             op.drop_column("events", name)
+
+    existing_tables = existing_table_names()
+    for table_name in ("scanner_users", "attendance_logs", "attendance"):
+        if table_name in existing_tables:
+            op.drop_table(table_name)

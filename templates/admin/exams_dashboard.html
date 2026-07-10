@@ -1,26 +1,183 @@
 {% extends "admin/admin_base.html" %}
 
-{% block title %}Online Exams{% endblock %}
+{% block title %}Online Exam Dashboard{% endblock %}
+
+{% block head %}
+<style>
+.exam-stat{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    min-height:112px;
+    padding:18px;
+    background:#fff;
+    border-radius:12px;
+    box-shadow:0 5px 15px rgba(0,0,0,.08);
+}
+.exam-stat i{
+    font-size:34px;
+}
+.exam-chart{
+    width:100%;
+    min-height:280px;
+    padding:16px;
+    background:#fff;
+    border-radius:12px;
+    box-shadow:0 5px 15px rgba(0,0,0,.08);
+}
+</style>
+{% endblock %}
 
 {% block content %}
-<div class="card">
-    <div class="card-header bg-primary text-white">
-        Online Exam Portal
+<div class="d-flex flex-wrap gap-2 mb-3">
+    <a href="{{ url_for('admin.exams_dashboard') }}" class="btn btn-outline-primary btn-sm">
+        <i class="fa-solid fa-gauge"></i> Dashboard
+    </a>
+    <a href="{{ url_for('routes.exam_login') }}" class="btn btn-outline-success btn-sm">
+        <i class="fa-solid fa-right-to-bracket"></i> Exam Login
+    </a>
+    <a href="{{ url_for('admin.events') }}" class="btn btn-outline-dark btn-sm">
+        <i class="fa-solid fa-calendar-check"></i> Manage Events
+    </a>
+    {% if selected_event_id %}
+    <a href="{{ url_for('admin.manage_event_exams', event_id=selected_event_id) }}" class="btn btn-outline-info btn-sm">
+        <i class="fa-solid fa-pen-to-square"></i> Manage Selected Event Exams
+    </a>
+    {% endif %}
+</div>
+
+<form method="GET" class="card card-body mb-4">
+    <div class="row g-3">
+        <div class="col-md-6">
+            <label class="form-label fw-bold">Event</label>
+            <select name="event_id" class="form-select" onchange="this.form.submit()">
+                <option value="">All Events</option>
+                {% for event in events %}
+                <option value="{{ event.id }}" {% if selected_event_id == event.id %}selected{% endif %}>
+                    {{ event.name }}
+                </option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="col-md-6">
+            <label class="form-label fw-bold">Exam</label>
+            <select name="exam_id" class="form-select" onchange="this.form.submit()">
+                <option value="">All Exams</option>
+                {% for exam in exam_options %}
+                <option value="{{ exam.id }}" {% if selected_exam_id == exam.id %}selected{% endif %}>
+                    {{ exam.exam_title }}
+                </option>
+                {% endfor %}
+            </select>
+        </div>
     </div>
+</form>
+
+{% set stats = dashboard.stats %}
+<div class="row g-3 mb-4">
+    {% set cards = [
+        ("Exam Events", stats.exam_enabled_events ~ " / " ~ stats.events, "primary", "calendar-check"),
+        ("Subjects", stats.subjects, "success", "book"),
+        ("Total Exams", stats.exams, "info", "file-pen"),
+        ("Active Exams", stats.active_exams, "warning", "circle-play"),
+        ("Questions", stats.questions, "dark", "circle-question"),
+        ("Exam Users", stats.exam_users, "secondary", "users"),
+        ("Attempts", stats.attempts, "primary", "clipboard-check"),
+        ("Passed", stats.passed, "success", "trophy"),
+        ("Failed", stats.failed, "danger", "triangle-exclamation"),
+        ("Average Score", stats.avg_score, "info", "chart-line"),
+        ("Violations", stats.violations, "danger", "eye-slash"),
+        ("Pending Review", stats.pending_review, "warning", "hourglass-half")
+    ] %}
+    {% for label, value, color, icon in cards %}
+    <div class="col-md-6 col-xl-3">
+        <div class="exam-stat border-start border-{{ color }} border-5">
+            <div>
+                <div class="text-muted small">{{ label }}</div>
+                <div class="h3 mb-0">{{ value }}</div>
+            </div>
+            <i class="fa-solid fa-{{ icon }} text-{{ color }}"></i>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<div class="row g-4">
+    <div class="col-lg-6"><canvas class="exam-chart" id="examEventChart"></canvas></div>
+    <div class="col-lg-6"><canvas class="exam-chart" id="examSubjectChart"></canvas></div>
+    <div class="col-lg-6"><canvas class="exam-chart" id="examStatusChart"></canvas></div>
+    <div class="col-lg-6"><canvas class="exam-chart" id="examResultChart"></canvas></div>
+</div>
+
+<div class="card mt-4">
+    <div class="card-header bg-dark text-white">Recent Exam Attempts</div>
     <div class="card-body p-0">
         <div class="table-responsive">
             <table class="table table-striped mb-0">
+                <thead>
+                    <tr>
+                        <th>Participant</th>
+                        <th>Exam</th>
+                        <th>Event</th>
+                        <th>Score</th>
+                        <th>Status</th>
+                        <th>Submitted</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for attempt in dashboard.recent_attempts %}
+                    <tr>
+                        <td>
+                            <strong>{{ attempt.participant.teacher_name if attempt.participant else "" }}</strong>
+                            <div class="small text-muted">{{ attempt.participant.reg_id if attempt.participant else "" }}</div>
+                        </td>
+                        <td>{{ attempt.exam.exam_title if attempt.exam else "" }}</td>
+                        <td>{{ attempt.exam.event.name if attempt.exam and attempt.exam.event else "" }}</td>
+                        <td>{{ attempt.score }} / {{ attempt.total_marks }}</td>
+                        <td>
+                            {% if attempt.exam and attempt.score >= (attempt.exam.pass_mark or 0) %}
+                            <span class="badge bg-success">Passed</span>
+                            {% else %}
+                            <span class="badge bg-danger">Failed</span>
+                            {% endif %}
+                            {% if attempt.evaluation_status == "pending_review" %}
+                            <span class="badge bg-warning text-dark">Review</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ attempt.submitted_at.strftime("%d-%m-%Y %H:%M") if attempt.submitted_at else "" }}</td>
+                    </tr>
+                    {% else %}
+                    <tr><td colspan="6" class="text-center text-muted py-4">No exam attempts found.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<div class="card mt-4">
+    <div class="card-header bg-primary text-white">Online Exam Events</div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-striped mb-0 align-middle">
                 <thead>
                     <tr>
                         <th>Event</th>
                         <th>Exam Status</th>
                         <th>Subjects</th>
                         <th>Exams</th>
+                        <th>Questions</th>
+                        <th>Attempts</th>
                         <th>Actions</th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for event in events %}
+                    {% set totals = namespace(questions=0, attempts=0) %}
+                    {% for exam in event.online_exams %}
+                        {% set totals.questions = totals.questions + exam.questions|length %}
+                        {% set totals.attempts = totals.attempts + exam.attempts|length %}
+                    {% endfor %}
                     <tr>
                         <td>
                             <strong>{{ event.name }}</strong>
@@ -35,23 +192,46 @@
                         </td>
                         <td>{{ event.exam_subjects|length }}</td>
                         <td>{{ event.online_exams|length }}</td>
+                        <td>{{ totals.questions }}</td>
+                        <td>{{ totals.attempts }}</td>
                         <td>
-                            <a href="{{ url_for('admin.edit_event', id=event.id) }}" class="btn btn-sm btn-outline-dark">
-                                Event Settings
-                            </a>
-                            <a href="{{ url_for('admin.manage_event_exams', event_id=event.id) }}" class="btn btn-sm btn-outline-primary">
-                                Manage Exams
-                            </a>
+                            <a href="{{ url_for('admin.edit_event', id=event.id) }}" class="btn btn-sm btn-outline-dark mb-1">Event Settings</a>
+                            <a href="{{ url_for('admin.manage_event_exams', event_id=event.id) }}" class="btn btn-sm btn-outline-primary mb-1">Manage Exams</a>
                         </td>
                     </tr>
                     {% else %}
-                    <tr>
-                        <td colspan="5" class="text-center py-4 text-muted">No events available.</td>
-                    </tr>
+                    <tr><td colspan="7" class="text-center py-4 text-muted">No events available.</td></tr>
                     {% endfor %}
                 </tbody>
             </table>
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+const examCharts = {{ dashboard.charts|tojson }};
+function examChart(id, label, data, type){
+    const canvas = document.getElementById(id);
+    if(!canvas || typeof Chart === "undefined") return;
+    new Chart(canvas, {
+        type: type || "bar",
+        data: {
+            labels: Object.keys(data),
+            datasets: [{
+                label,
+                data: Object.values(data),
+                backgroundColor:["#0d6efd","#198754","#ffc107","#dc3545","#6f42c1","#20c997","#fd7e14","#0dcaf0"]
+            }]
+        },
+        options:{responsive:true,maintainAspectRatio:false}
+    });
+}
+examChart("examEventChart", "Attempts by Event", examCharts.by_event, "bar");
+examChart("examSubjectChart", "Attempts by Subject", examCharts.by_subject, "bar");
+examChart("examStatusChart", "Exam Status", examCharts.status_counts, "doughnut");
+examChart("examResultChart", "Result Summary", examCharts.result_counts, "doughnut");
+</script>
 {% endblock %}

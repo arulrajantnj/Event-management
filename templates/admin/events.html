@@ -81,6 +81,12 @@
                     <input type="text" name="marquee_message" class="form-control" placeholder="New event registration is now live.">
                 </div>
 
+                <div class="mb-3">
+                    <label class="form-label">Hero Priority</label>
+                    <input type="number" name="hero_priority" class="form-control" value="0" min="0">
+                    <small class="text-muted">Higher number appears first in the website hero as LATEST.</small>
+                </div>
+
                 <div class="border rounded-4 p-3 mb-3 bg-light">
                     <h6 class="mb-3">Photo Settings</h6>
                     <div class="form-check mb-2">
@@ -310,6 +316,11 @@
                                 <div><code>{{ event.slug }}</code></div>
                                 {% if event.description %}
                                 <div class="small text-muted">{{ event.description }}</div>
+                                {% endif %}
+                                {% if event.hero_priority %}
+                                <div class="mt-1">
+                                    <span class="badge bg-danger">Hero Priority {{ event.hero_priority }}</span>
+                                </div>
                                 {% endif %}
                             </td>
                             <td>

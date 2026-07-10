@@ -226,6 +226,7 @@ def event_payload_from_form(event=None):
         "collect_school_area": True,
         "collect_block": True,
         "marquee_message": request.form.get("marquee_message", "").strip(),
+        "hero_priority": max(request.form.get("hero_priority", 0, type=int) or 0, 0),
         "payment_enabled": payment_enabled,
         "payment_amount": payment_amount,
         "payment_link": request.form.get("payment_link", "").strip(),
@@ -583,6 +584,7 @@ def admin():
 
     total = Participant.query.count()
     events = Event.query.order_by(
+        Event.hero_priority.desc(),
         Event.is_active.desc(),
         Event.created_at.desc(),
         Event.id.desc()
@@ -918,15 +920,35 @@ def exams_dashboard():
     if "admin" not in session:
         return redirect(url_for("routes.login"))
 
+    selected_event_id = request.args.get("event_id", type=int)
+    selected_exam_id = request.args.get("exam_id", type=int)
+
     events = Event.query.order_by(
         Event.exam_enabled.desc(),
         Event.created_at.desc(),
         Event.id.desc()
     ).all()
 
+    exam_options_query = OnlineExam.query.order_by(
+        OnlineExam.created_at.desc(),
+        OnlineExam.id.desc()
+    )
+    if selected_event_id:
+        exam_options_query = exam_options_query.filter(
+            OnlineExam.event_id == selected_event_id
+        )
+
+    exam_options = exam_options_query.all()
+    dashboard = build_exam_dashboard(selected_event_id, selected_exam_id)
+
     return render_template(
         "admin/exams_dashboard.html",
-        events=events
+        events=events,
+        exam_options=exam_options,
+        selected_event_id=selected_event_id,
+        selected_exam_id=selected_exam_id,
+        dashboard=dashboard,
+        online_exam_status=online_exam_status,
     )
 
 

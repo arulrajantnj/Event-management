@@ -9,6 +9,7 @@ from sqlalchemy.exc import OperationalError
 from models import db, Block, Event, EventField
 
 from routes import routes as routes_bp
+from attendance_routes import attendance_bp
 from admin_routes import admin_bp
 from layout_editor import layout_bp
 
@@ -84,6 +85,7 @@ migrate = Migrate(app, db)
 # ==========================
 
 app.register_blueprint(routes_bp)
+app.register_blueprint(attendance_bp)
 app.register_blueprint(admin_bp)
 app.register_blueprint(layout_bp)
 

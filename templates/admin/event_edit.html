@@ -79,6 +79,12 @@
                             <input type="text" name="marquee_message" class="form-control" value="{{ event.marquee_message or '' }}">
                         </div>
 
+                        <div class="col-md-6">
+                            <label class="form-label">Hero Priority</label>
+                            <input type="number" name="hero_priority" class="form-control" value="{{ event.hero_priority or 0 }}" min="0">
+                            <small class="text-muted">Higher number appears first in the website hero as LATEST.</small>
+                        </div>
+
                         <div class="col-12">
                             <label class="form-label">Description</label>
                             <textarea name="description" class="form-control" rows="4">{{ event.description or '' }}</textarea>

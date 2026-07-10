@@ -1,97 +1,55 @@
-
-</header>
-<section class="hero">
+<section class="hero hero-priority-events">
 
     <div class="container">
 
-        <div class="row align-items-center">
+        <div class="row align-items-center justify-content-center">
 
-            <div class="col-lg-7">
+            <div class="col-xl-10 col-lg-11">
 
-                <div class="glass hero-content">
+                <div class="glass hero-content hero-event-panel">
 
-                    <h5 class="text-warning fw-bold">
-                        VANDURAI EVENTS WELCOMES YOU!!!
-                    </h5>
-
-                    <h1 class="display-3 fw-bold text-white">
-                        Vandurai Events
-                    </h1>
-
-                    <h3 class="text-light mt-3">
-                        தமிழ்நாடு அரசு நிகழ்ச்சி மேலாண்மை தளம்
-                    </h3>
-
-                    <p class="lead text-white mt-4">
-
-                        Digital Registration • QR Verification •
-                        Certificates • Reports • Smart Event Management
-
-                    </p>
-
-                    <div class="mt-4">
-
-                        <a href="/register"
-                           class="btn btn-warning btn-lg me-3">
-
-                            Register Now
-
-                        </a>
-
-                        <a href="/login"
-                           class="btn btn-outline-light btn-lg">
-
-                            Admin Login
-
-                        </a>
-
-                        <a href="/exam-login"
-                           class="btn btn-outline-light btn-lg mt-2 mt-lg-0">
-
-                            Online Exam
-
-                        </a>
-
+                    <div class="hero-brand-block">
+                        <h1 class="hero-brand-name">
+                            VANDURAI EVENTS
+                        </h1>
+                        <div class="hero-brand-location">
+                            THANJAVUR
+                        </div>
                     </div>
 
-                    {% if events %}
-                    <div class="mt-4">
-                        <p class="text-white-50 mb-2">Active Events</p>
-                        <div class="d-flex flex-wrap gap-2">
-                            {% for event in events %}
-                            {% if event.registration_type == "no_registration" %}
-                            <a
-                                href="{{ url_for('routes.exam_login') if event.exam_enabled else '#' }}"
-                                class="btn btn-sm btn-outline-light {% if not event.exam_enabled %}disabled{% endif %}">
-                                {{ event.name }}
-                                <span class="ms-1 badge text-bg-info">No Registration</span>
-                            </a>
-                            {% else %}
-                            <a
-                                href="{{ url_for('routes.register', event=event.slug) }}"
-                                class="btn btn-sm {% if event.requires_photo %}btn-outline-light{% else %}btn-light{% endif %}">
-                                {{ event.name }}
-                                {% if not event.requires_photo %}
-                                <span class="ms-1 badge text-bg-warning text-dark">No Photo</span>
-                                {% endif %}
-                            </a>
-                            {% endif %}
-                            {% endfor %}
-                        </div>
+                    <h2 class="brand-welcome-title">
+                        Priority Events
+                    </h2>
+
+                    {% if latest_events %}
+                    <div class="hero-priority-grid">
+                        {% for event in latest_events %}
+                        {% if event.registration_type == "no_registration" %}
+                        <a
+                            href="{{ url_for('routes.exam_login') if event.exam_enabled else '#' }}"
+                            class="priority-event-link {% if not event.exam_enabled %}disabled{% endif %}">
+                            <span class="latest-dot">LATEST</span>
+                            <span>{{ event.name }}</span>
+                        </a>
+                        {% else %}
+                        <a
+                            href="{{ url_for('routes.register', event=event.slug) }}"
+                            class="priority-event-link">
+                            <span class="latest-dot">LATEST</span>
+                            <span>{{ event.name }}</span>
+                        </a>
+                        {% endif %}
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <div class="text-white fs-4 fw-bold">
+                        No priority events are available right now.
                     </div>
                     {% endif %}
 
                 </div>
 
             </div>
-
-            <div class="col-lg-5 text-center">
-
-    <img src="{{ url_for('static', filename='images/banner4.jpg') }}"
-         class="hero-banner"
-         alt="Event Banner">
-
-</div>
 
         </div>
 
