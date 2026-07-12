@@ -77,6 +77,13 @@
                 </div>
 
                 <div class="border rounded-4 p-3 mb-3 bg-light">
+                    <h6 class="mb-3">Registration Page Content</h6>
+                    <div class="mb-2"><label class="form-label">Registration Additional Title / Header</label><input name="registration_header" class="form-control" placeholder="Optional heading shown on the registration page"><div class="form-check mt-1"><input class="form-check-input" type="checkbox" name="show_registration_header" id="show_registration_header" checked><label class="form-check-label" for="show_registration_header">Show this heading on the registration page</label></div></div>
+                    <div class="mb-2"><label class="form-label">Instruction Area</label><textarea name="registration_instructions" class="form-control" rows="4" placeholder="Optional instructions shown before the registration form"></textarea><div class="form-check mt-1"><input class="form-check-input" type="checkbox" name="show_registration_instructions" id="show_registration_instructions" checked><label class="form-check-label" for="show_registration_instructions">Show instructions on the registration page</label></div></div>
+                    <div class="form-check"><input class="form-check-input" type="checkbox" name="show_registration_sponsor" id="show_registration_sponsor"><label class="form-check-label" for="show_registration_sponsor">Show sponsor / owner name, logo and banner on registration page</label></div>
+                </div>
+
+                <div class="border rounded-4 p-3 mb-3 bg-light">
                     <h6 class="mb-3">Participant Entry</h6>
                     <div class="form-check mb-2">
                         <input class="form-check-input" type="checkbox" name="public_registration_enabled" id="public_registration_enabled" checked>
@@ -139,6 +146,11 @@
                         <input type="number" step="0.01" min="0" name="payment_amount" class="form-control" placeholder="0.00">
                     </div>
                     <div class="mb-2">
+                        <label class="form-label">Payment method</label>
+                        <select name="payment_gateway" class="form-select"><option value="manual">Manual payment link / instructions</option><option value="razorpay">Razorpay checkout</option></select>
+                        <small class="text-muted">Razorpay keys are stored securely in the server environment.</small>
+                    </div>
+                    <div class="mb-2">
                         <label class="form-label">Payment Link</label>
                         <input type="url" name="payment_link" class="form-control" placeholder="https://payment-link.example">
                     </div>
@@ -156,6 +168,11 @@
                             Enable acknowledgement slip / print
                         </label>
                     </div>
+                    <div class="border rounded-3 p-3 mb-3 bg-white">
+                        <div class="mb-2"><label class="form-label">Acknowledgement instructions</label><textarea name="acknowledgement_instructions" class="form-control" rows="3" placeholder="Example: Please report at the venue 30 minutes before the event."></textarea><div class="form-check mt-1"><input class="form-check-input" type="checkbox" name="show_acknowledgement_instructions" id="show_acknowledgement_instructions"><label class="form-check-label" for="show_acknowledgement_instructions">Show instructions on acknowledgement slip</label></div></div>
+                        <div><label class="form-label">Thank-you message</label><input name="acknowledgement_thank_you" class="form-control" placeholder="Thank you for registering. We look forward to seeing you!"><div class="form-check mt-1"><input class="form-check-input" type="checkbox" name="show_acknowledgement_thank_you" id="show_acknowledgement_thank_you"><label class="form-check-label" for="show_acknowledgement_thank_you">Show thank-you message on acknowledgement slip</label></div></div>
+                        <div class="form-check mt-3"><input class="form-check-input" type="checkbox" name="show_acknowledgement_payment_details" id="show_acknowledgement_payment_details"><label class="form-check-label" for="show_acknowledgement_payment_details">Show successful Razorpay transaction number and paid amount on acknowledgement slip</label></div>
+                    </div>
                     <div class="form-check mb-2">
                         <input class="form-check-input" type="checkbox" name="whatsapp_ack_enabled" id="whatsapp_ack_enabled">
                         <label class="form-check-label" for="whatsapp_ack_enabled">
@@ -166,6 +183,8 @@
                         <label class="form-label">WhatsApp Template</label>
                         <textarea name="whatsapp_template" class="form-control" rows="3" placeholder="Use {event_name}, {reg_id}, {participant_name}"></textarea>
                     </div>
+                    <label class="form-label">Add selected details to WhatsApp acknowledgement</label>
+                    <div class="row g-1 mb-3">{% for value, label in whatsapp_field_choices %}<div class="col-md-6"><div class="form-check"><input class="form-check-input" type="checkbox" name="whatsapp_ack_fields" id="wa_{{ value }}" value="{{ value }}"><label class="form-check-label" for="wa_{{ value }}">{{ label }}</label></div></div>{% endfor %}</div>
                     <div class="form-check mb-2">
                         <input class="form-check-input" type="checkbox" name="whatsapp_group_enabled" id="whatsapp_group_enabled">
                         <label class="form-check-label" for="whatsapp_group_enabled">
@@ -227,7 +246,7 @@
                 </div>
 
                 <div class="border rounded-4 p-3 mb-3 bg-light">
-                    <h6 class="mb-3">Sponsor / Brand on Acknowledgement Slip</h6>
+                    <h6 class="mb-3">Sponsor / Owner Brand — Acknowledgement & Registration Page</h6>
                     <div class="mb-2">
                         <label class="form-label">Sponsor Brand Name</label>
                         <input type="text" name="sponsor_brand" class="form-control" placeholder="Sponsor or brand name">
@@ -237,7 +256,7 @@
                         <input type="file" name="sponsor_logo" class="form-control" accept=".jpg,.jpeg,.png,.webp,.gif">
                     </div>
                     <div class="mb-0">
-                        <label class="form-label">Sponsor Image / Banner</label>
+                        <label class="form-label">Sponsor / Owner Image or Banner</label>
                         <input type="file" name="sponsor_image" class="form-control" accept=".jpg,.jpeg,.png,.webp,.gif">
                     </div>
                     <div class="row g-2 mt-3">

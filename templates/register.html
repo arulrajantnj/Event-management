@@ -69,6 +69,16 @@ body{
     margin:0;
 }
 
+.registration-sponsor{
+    display:flex;
+    flex-wrap:wrap;
+    align-items:center;
+    justify-content:center;
+    gap:14px;
+    margin:0 auto 18px;
+}
+.registration-sponsor-logo,.registration-sponsor-banner{max-width:100%;object-fit:contain;border-radius:10px;background:#fff;padding:3px;}
+
 .card-body{
     background:#fff;
     padding:35px;
@@ -118,6 +128,51 @@ body{
 
 .alert{
     border-radius:12px;
+}
+
+/* Important event information: deliberately prominent and easy to scan. */
+.event-details-card{
+    border:2px solid #76adff;
+    border-radius:16px;
+    background:linear-gradient(135deg,#e8f2ff,#d5e8ff);
+    padding:20px 24px;
+    text-align:center;
+    color:#102a52;
+    font-size:1.12rem;
+    font-weight:650;
+    box-shadow:0 8px 20px rgba(26,93,180,.14);
+}
+
+.event-details-card > strong{
+    display:block;
+    color:#084b9e;
+    font-size:1.38rem;
+    margin-bottom:12px;
+}
+
+.event-details-card ul{
+    display:flex;
+    flex-wrap:wrap;
+    justify-content:center;
+    gap:10px 16px;
+    list-style:none;
+    padding:0;
+    margin:0 !important;
+}
+
+.event-details-card li{
+    background:#fff;
+    border:1px solid #b7d4ff;
+    border-radius:999px;
+    padding:8px 14px;
+    font-size:1.13rem;
+    font-weight:700;
+    box-shadow:0 2px 7px rgba(23,77,145,.08);
+}
+
+.event-details-card li strong{
+    color:#c2440a;
+    font-size:1.15rem;
 }
 
 .declaration-box{
@@ -201,6 +256,19 @@ body{
         margin-bottom:14px;
     }
 
+    .event-details-card{
+        padding:16px 12px;
+    }
+
+    .event-details-card > strong{
+        font-size:1.2rem;
+    }
+
+    .event-details-card li{
+        width:100%;
+        font-size:1.05rem;
+    }
+
     .photo-preview{
         width:150px;
         height:176px;
@@ -254,6 +322,14 @@ body{
 
 <div class="header-banner">
 
+{% if selected_event and selected_event.show_registration_sponsor and (selected_event.sponsor_brand or selected_event.sponsor_logo or selected_event.sponsor_image) %}
+<div class="registration-sponsor" style="justify-content:{{ {'left':'flex-start','center':'center','right':'flex-end'}.get(selected_event.sponsor_logo_position or 'center', 'center') }};">
+    {% if selected_event.sponsor_logo %}<img class="registration-sponsor-logo" src="{{ url_for('static', filename='sponsors/' + selected_event.sponsor_logo) }}" alt="Sponsor logo" style="width:{{ selected_event.sponsor_logo_width or 160 }}px;height:{{ selected_event.sponsor_logo_height or 90 }}px;object-fit:{{ selected_event.sponsor_image_fit or 'contain' }};">{% endif %}
+    {% if selected_event.sponsor_brand %}<strong>{{ selected_event.sponsor_brand }}</strong>{% endif %}
+    {% if selected_event.sponsor_image %}<img class="registration-sponsor-banner" src="{{ url_for('static', filename='sponsors/' + selected_event.sponsor_image) }}" alt="Sponsor or owner banner" style="width:{{ selected_event.sponsor_banner_width or 520 }}px;height:{{ selected_event.sponsor_banner_height or 170 }}px;object-fit:{{ selected_event.sponsor_image_fit or 'contain' }};">{% endif %}
+</div>
+{% endif %}
+
 <div class="registration-brand">
     <img src="{{ url_for('static', filename='images/logo.png') }}"
          class="registration-logo"
@@ -265,7 +341,7 @@ body{
 
 <h1>
 {% if selected_event %}
-{{ selected_event.name }}
+{{ selected_event.registration_header if selected_event.show_registration_header and selected_event.registration_header else selected_event.name }}
 {% else %}
 Event Registration
 {% endif %}
@@ -284,6 +360,13 @@ Event Registration
 {% if success %}
 <div class="alert alert-success">
 {{ success }}
+</div>
+{% endif %}
+
+{% if selected_event and selected_event.show_registration_instructions and selected_event.registration_instructions %}
+<div class="alert alert-info mb-4">
+    <strong><i class="fa-solid fa-circle-info"></i> Instructions</strong>
+    <div class="mt-2" style="white-space: pre-line;">{{ selected_event.registration_instructions }}</div>
 </div>
 {% endif %}
 
@@ -350,7 +433,7 @@ required>
 {% endif %}
 
 {% if selected_event and (selected_event.show_venue or selected_event.show_event_date or selected_event.show_event_time or selected_event.show_chief_guest) %}
-<div class="alert alert-primary mt-3">
+<div class="event-details-card mt-3">
     <strong><i class="fa-solid fa-circle-info"></i> Event Details</strong>
     <ul class="mb-0 mt-2">
         {% if selected_event.show_venue and selected_event.venue %}<li><strong>Venue:</strong> {{ selected_event.venue }}</li>{% endif %}

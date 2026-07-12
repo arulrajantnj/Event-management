@@ -21,24 +21,15 @@
                         Priority Events
                     </h2>
 
-                    {% if latest_events %}
+                    {% if priority_items %}
                     <div class="hero-priority-grid">
-                        {% for event in latest_events %}
-                        {% if event.registration_type == "no_registration" %}
+                        {% for item in priority_items %}
                         <a
-                            href="{{ url_for('routes.exam_login') if event.exam_enabled else '#' }}"
-                            class="priority-event-link {% if not event.exam_enabled %}disabled{% endif %}">
-                            <span class="latest-dot">LATEST</span>
-                            <span>{{ event.name }}</span>
+                            href="{{ item.url if not item.disabled else '#' }}"
+                            class="priority-event-link {% if item.disabled %}disabled{% endif %}">
+                            <span class="latest-dot">{{ 'RESULT' if item.kind == 'result' else 'LATEST' }}</span>
+                            <span>{{ item.title }}</span>
                         </a>
-                        {% else %}
-                        <a
-                            href="{{ url_for('routes.register', event=event.slug) }}"
-                            class="priority-event-link">
-                            <span class="latest-dot">LATEST</span>
-                            <span>{{ event.name }}</span>
-                        </a>
-                        {% endif %}
                         {% endfor %}
                     </div>
                     {% else %}

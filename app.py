@@ -12,6 +12,7 @@ from routes import routes as routes_bp
 from attendance_routes import attendance_bp
 from admin_routes import admin_bp
 from layout_editor import layout_bp
+from chess_routes import chess_bp
 
 # ==========================
 # Create Flask App
@@ -88,6 +89,7 @@ app.register_blueprint(routes_bp)
 app.register_blueprint(attendance_bp)
 app.register_blueprint(admin_bp)
 app.register_blueprint(layout_bp)
+app.register_blueprint(chess_bp)
 
 
 @app.errorhandler(OperationalError)

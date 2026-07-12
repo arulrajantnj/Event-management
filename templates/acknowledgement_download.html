@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <title>Acknowledgement - {{ participant.reg_id }}</title>
 <style>
-body{font-family:Arial,sans-serif;color:#172033;margin:36px}.slip{max-width:760px;margin:auto;border:2px solid #1d4ed8;padding:30px;border-radius:12px}h1{text-align:center;color:#1d4ed8;margin:0 0 8px}.sub{text-align:center;color:#566277;margin:0 0 26px}table{width:100%;border-collapse:collapse}th,td{padding:10px;border:1px solid #cbd5e1;text-align:left}th{width:35%;background:#eff6ff}.details{margin:22px 0;padding:14px;background:#eff6ff;border-radius:8px}.footer{margin-top:30px;color:#566277;font-size:12px;text-align:center}@media print{body{margin:0}.slip{border:0}}
+body{font-family:Arial,sans-serif;color:#172033;margin:36px}.slip{max-width:760px;margin:auto;border:2px solid #1d4ed8;padding:30px;border-radius:12px}h1{text-align:center;color:#1d4ed8;margin:0 0 8px}.sub{text-align:center;color:#566277;margin:0 0 26px}table{width:100%;border-collapse:collapse}th,td{padding:10px;border:1px solid #cbd5e1;text-align:left}th{width:35%;background:#eff6ff}.details{margin:22px 0;padding:14px;background:#eff6ff;border-radius:8px}.instructions div{white-space:pre-line;margin-top:8px}.thank-you{margin:22px 0;padding:16px;background:#ecfdf5;border:1px solid #86efac;border-radius:8px;color:#166534;font-weight:bold;text-align:center}.footer{margin-top:30px;color:#566277;font-size:12px;text-align:center}@media print{body{margin:0}.slip{border:0}}
 </style>
 </head>
 <body><main class="slip">
@@ -24,5 +24,17 @@ body{font-family:Arial,sans-serif;color:#172033;margin:36px}.slip{max-width:760p
 {% if participant.event.show_event_time and participant.event.event_time %}Time: {{ participant.event.event_time }}<br>{% endif %}
 {% if participant.event.show_chief_guest and participant.event.chief_guest %}Chief Guest: {{ participant.event.chief_guest }}{% endif %}
 </section>{% endif %}
+{% if participant.event.show_acknowledgement_instructions and participant.event.acknowledgement_instructions %}
+<section class="details instructions"><strong>Instructions</strong><div>{{ participant.event.acknowledgement_instructions }}</div></section>
+{% endif %}
+{% if participant.event.show_acknowledgement_thank_you and participant.event.acknowledgement_thank_you %}
+<section class="thank-you">{{ participant.event.acknowledgement_thank_you }}</section>
+{% endif %}
+{% if participant.event.show_acknowledgement_payment_details and participant.payment_status == 'paid' and participant.razorpay_payment_id %}
+<section class="details payment-details"><strong>Payment Confirmation</strong><br>
+Transaction Number: {{ participant.razorpay_payment_id }}<br>
+Paid Amount: Rs. {{ "%.2f"|format(participant.event.payment_amount or 0) }}
+</section>
+{% endif %}
 <p class="footer">Please retain this acknowledgement for event verification.</p>
 </main></body></html>

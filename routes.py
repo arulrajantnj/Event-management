@@ -14,6 +14,7 @@ from sqlalchemy.exc import IntegrityError
 from models import (
     db,
     Event,
+    HomepagePromotion,
     EventField,
     ExamAnswer,
     ExamAttempt,
@@ -28,6 +29,8 @@ from models import (
 from certificate_generator import generate_certificate, get_active_template
 
 from datetime import datetime, timedelta
+import hashlib
+import hmac
 import qrcode
 import math
 import json
@@ -35,6 +38,7 @@ import os
 import re
 import uuid
 import traceback
+import requests
 from urllib.parse import quote
 from werkzeug.security import check_password_hash
 from PIL import Image, ImageDraw, ImageFont
@@ -123,6 +127,43 @@ def home():
         Event.id.desc()
     ).all()
     latest_events = events[:3]
+    promotions = HomepagePromotion.query.filter_by(is_active=True).order_by(
+        HomepagePromotion.sort_order.desc(), HomepagePromotion.id.desc()
+    ).all()
+    published_exams = OnlineExam.query.filter_by(public_results_published=True).order_by(
+        OnlineExam.created_at.desc(), OnlineExam.id.desc()
+    ).all()
+    published_competitions = Competition.query.filter_by(results_published=True).order_by(
+        Competition.created_at.desc(), Competition.id.desc()
+    ).all()
+    result_items = [
+        {
+            "title": f"Latest {exam.exam_title} Result Published",
+            "url": url_for("routes.public_competition_results", exam_id=exam.id),
+            "kind": "result",
+        }
+        for exam in published_exams
+    ] + [
+        {
+            "title": f"{competition.name} Competition Result Published",
+            "url": url_for("routes.public_competition_results", competition_id=competition.id),
+            "kind": "result",
+        }
+        for competition in published_competitions
+    ]
+    priority_items = result_items + [
+        {
+            "title": event.name,
+            "url": (
+                url_for("routes.exam_login")
+                if event.registration_type == "no_registration" and event.exam_enabled
+                else url_for("routes.register", event=event.slug)
+            ),
+            "kind": "event",
+            "disabled": event.registration_type == "no_registration" and not event.exam_enabled,
+        }
+        for event in latest_events
+    ]
     ticker_items = [
         {
             "message": event.marquee_message or (
@@ -143,16 +184,21 @@ def home():
         .order_by(Competition.created_at.desc(), Competition.id.desc())
         .all()
     )
+    ticker_items = [
+        {"message": item["title"], "url": item["url"]} for item in result_items
+    ] + ticker_items
     return render_template(
         "index.html",
         events=events,
         latest_events=latest_events,
+        priority_items=priority_items,
         registration_events=[
             event
             for event in events
             if event.registration_type != "no_registration"
         ],
         ticker_items=ticker_items
+        ,promotions=promotions
     )
 
 
@@ -404,6 +450,7 @@ def event_field_state(event):
         "registration_fields": fields,
         "field_names": available_field_names,
         "payment_enabled": bool(event.payment_enabled),
+        "payment_gateway": event.payment_gateway or "manual",
         "whatsapp_ack_enabled": bool(event.whatsapp_ack_enabled),
         "whatsapp_group_enabled": bool(event.whatsapp_group_enabled),
         "acknowledgement_enabled": bool(event.acknowledgement_enabled),
@@ -413,6 +460,46 @@ def event_field_state(event):
             event.show_venue or event.show_event_date or event.show_event_time or event.show_chief_guest
         )),
     }
+
+
+def razorpay_credentials():
+    return os.getenv("RAZORPAY_KEY_ID", "").strip(), os.getenv("RAZORPAY_KEY_SECRET", "").strip()
+
+
+def registration_is_complete(participant):
+    event = participant.event if participant else None
+    return bool(participant and not (
+        event
+        and event.payment_enabled
+        and event.payment_gateway == "razorpay"
+        and participant.payment_status != "paid"
+    ))
+
+
+def create_razorpay_order(event, participant):
+    """Create one server-side Razorpay order per participant."""
+    key_id, key_secret = razorpay_credentials()
+    if not key_id or not key_secret:
+        raise RuntimeError("Razorpay is not configured. Add RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET to .env.")
+    if participant.razorpay_order_id:
+        return participant.razorpay_order_id
+    amount = int(round((event.payment_amount or 0) * 100))
+    if amount < 100:
+        raise RuntimeError("Razorpay payment amount must be at least Rs. 1.00.")
+    response = requests.post(
+        "https://api.razorpay.com/v1/orders",
+        auth=(key_id, key_secret),
+        json={"amount": amount, "currency": "INR", "receipt": participant.reg_id[:40], "notes": {"participant_id": str(participant.id), "event_id": str(event.id), "registration_id": participant.reg_id}},
+        timeout=20,
+    )
+    if response.status_code == 401:
+        raise PermissionError("Razorpay authentication failed. Check the server Key ID and Key Secret.")
+    if not response.ok:
+        raise RuntimeError("Razorpay could not create the order. Please try again shortly.")
+    participant.razorpay_order_id = response.json()["id"]
+    participant.payment_status = "pending"
+    db.session.commit()
+    return participant.razorpay_order_id
 
 
 def participant_display_rows(field_payload, submitted_values):
@@ -488,6 +575,31 @@ def whatsapp_ack_link(event, participant):
         reg_id=participant.reg_id,
         participant_name=participant.teacher_name
     )
+    selected_fields = [item.strip() for item in (event.whatsapp_ack_fields or "").splitlines() if item.strip()]
+    values = {
+        "event_name": ("Event", event.name),
+        "reg_id": ("Registration ID", participant.reg_id),
+        "participant_name": ("Participant", participant.teacher_name),
+        "mobile": ("Mobile", participant.mobile),
+        "email": ("Email", participant.email),
+        "school_name": ("School / Organization", participant.school_name),
+        # WhatsApp's click-to-chat URL cannot attach an image automatically.
+        # This public image URL lets the recipient view or share the QR/barcode.
+        "code_link": ("QR / Barcode", url_for("routes.qrcode_image", reg_id=participant.reg_id, _external=True)),
+    }
+    extra_values = participant.extra_data_map()
+    details = []
+    for field_name in selected_fields:
+        if field_name in values:
+            label, value = values[field_name]
+        else:
+            item = extra_values.get(field_name, {})
+            label = item.get("label", field_name.replace("_", " ").title()) if isinstance(item, dict) else field_name.replace("_", " ").title()
+            value = item.get("value", "") if isinstance(item, dict) else item
+        if value not in (None, ""):
+            details.append(f"{label}: {value}")
+    if details:
+        message = f"{message}\n\n" + "\n".join(details)
     return f"https://wa.me/91{participant.mobile}?text={quote(message)}"
 
 
@@ -995,7 +1107,8 @@ def confirm_registration():
         school_area=data["school_area"],
         block=data["block"],
         photo=data["photo"],
-        extra_data=json.dumps(data.get("extra_data", {}))
+        extra_data=json.dumps(data.get("extra_data", {})),
+        payment_status=("pending" if event.payment_enabled and event.payment_gateway == "razorpay" else "not_required")
     )
 
     print("=" * 60)
@@ -1041,13 +1154,18 @@ def confirm_registration():
             ))
             db.session.commit()
 
-    # --------------------------------------------
-    # Generate QR Code
-    # --------------------------------------------
-    generate_participant_code(event, participant)
-    db.session.commit()
+    payment_pending = bool(
+        event.payment_enabled
+        and event.payment_gateway == "razorpay"
+        and participant.payment_status != "paid"
+    )
 
-    if event.certificate_enabled:
+    # Paid events are finalised only after Razorpay signature verification.
+    if not payment_pending:
+        generate_participant_code(event, participant)
+        db.session.commit()
+
+    if event.certificate_enabled and not payment_pending:
         try:
 
             # ----------------------------------------
@@ -1072,16 +1190,100 @@ def confirm_registration():
             print("=" * 60)
 
             return f"<h2>Error</h2><pre>{e}</pre>", 500
-    else:
+    elif not payment_pending:
         print("Certificate generation skipped for this event")
+
+    razorpay_order_id = None
+    razorpay_error = ""
+    if event.payment_enabled and event.payment_gateway == "razorpay" and not all(razorpay_credentials()):
+        razorpay_error = "Razorpay is not configured. Please contact the event organiser."
 
     session.pop("registration", None)
 
     return render_template(
         "success.html",
         participant=participant,
-        whatsapp_link=whatsapp_ack_link(event, participant)
+        whatsapp_link=("" if payment_pending else whatsapp_ack_link(event, participant)),
+        razorpay_key_id=razorpay_credentials()[0],
+        razorpay_order_id=razorpay_order_id,
+        razorpay_error=razorpay_error,
     )
+
+
+@routes.route("/api/create-order", methods=["POST"])
+def create_razorpay_order_api():
+    payload = request.get_json(silent=True) or request.form
+    try:
+        participant_id = int(payload.get("participant_id", 0))
+    except (TypeError, ValueError):
+        participant_id = 0
+    if not participant_id:
+        return {"ok": False, "message": "Participant details are required."}, 400
+    participant = Participant.query.get(participant_id)
+    if not participant or not participant.event or not participant.event.payment_enabled or participant.event.payment_gateway != "razorpay":
+        return {"ok": False, "message": "Razorpay payment is not available for this registration."}, 400
+    amount = int(round((participant.event.payment_amount or 0) * 100))
+    if amount < 100:
+        return {"ok": False, "message": "Payment amount must be at least 100 paise."}, 400
+    try:
+        order_id = create_razorpay_order(participant.event, participant)
+    except PermissionError as error:
+        return {"ok": False, "message": str(error)}, 401
+    except (RuntimeError, requests.RequestException) as error:
+        return {"ok": False, "message": str(error)}, 500
+    return {"ok": True, "order_id": order_id, "amount": amount, "currency": "INR"}
+
+
+@routes.route("/payment/razorpay/verify", methods=["POST"])
+@routes.route("/api/verify-payment", methods=["POST"])
+def verify_razorpay_payment():
+    payload = request.get_json(silent=True) or request.form
+    try:
+        participant_id = int(payload.get("participant_id", 0))
+    except (TypeError, ValueError):
+        participant_id = 0
+    order_id = str(payload.get("razorpay_order_id", "")).strip()
+    payment_id = str(payload.get("razorpay_payment_id", "")).strip()
+    signature = str(payload.get("razorpay_signature", "")).strip()
+    if not participant_id or not order_id or not payment_id or not signature:
+        return {"ok": False, "message": "Missing Razorpay payment details."}, 400
+    participant = Participant.query.get(participant_id)
+    if not participant:
+        return {"ok": False, "message": "Registration was not found."}, 400
+    key_id, key_secret = razorpay_credentials()
+    expected = hmac.new(key_secret.encode(), f"{order_id}|{payment_id}".encode(), hashlib.sha256).hexdigest() if key_secret else ""
+    if not key_id or not hmac.compare_digest(signature, expected) or participant.razorpay_order_id != order_id:
+        return {"ok": False, "message": "Payment verification failed. Your payment has not been marked as complete."}, 400
+    participant.razorpay_payment_id = payment_id
+    participant.payment_status = "paid"
+    participant.payment_verified_at = datetime.utcnow()
+    db.session.commit()
+
+    # The registration becomes complete only after the signed payment response
+    # has been accepted. Generate participant artefacts at that point.
+    try:
+        qr_path = os.path.join(QR_FOLDER, f"{participant.reg_id}.png")
+        if not participant.qr_code or not os.path.exists(qr_path):
+            generate_participant_code(participant.event, participant)
+            db.session.commit()
+        if participant.event.certificate_enabled and not participant.certificate_generated:
+            certificate_result = generate_certificate(participant)
+            if not certificate_result.get("success"):
+                print("WARNING: post-payment certificate generation failed:", certificate_result.get("error"))
+    except Exception:
+        # Never report a valid payment as failed because an optional downloadable
+        # artefact could not be generated. It can still be generated on demand.
+        traceback.print_exc()
+
+    return {"ok": True, "redirect_url": url_for("routes.razorpay_payment_complete", participant_id=participant.id)}
+
+
+@routes.route("/payment/razorpay/complete/<int:participant_id>")
+def razorpay_payment_complete(participant_id):
+    participant = Participant.query.get_or_404(participant_id)
+    if participant.payment_status != "paid":
+        return redirect(url_for("routes.register", event=participant.event.slug))
+    return render_template("success.html", participant=participant, whatsapp_link=whatsapp_ack_link(participant.event, participant), razorpay_key_id="", razorpay_order_id=None, razorpay_error="")
 # ==========================================================
 # QR IMAGE
 # ==========================================================
@@ -1089,6 +1291,8 @@ def confirm_registration():
 def qrcode_image(reg_id):
 
     participant = Participant.query.filter_by(reg_id=reg_id).first()
+    if participant and not registration_is_complete(participant):
+        return "Complete payment to confirm this registration.", 403
     if participant and participant.event and not participant.event.qr_sharing_enabled:
         return "QR code sharing is not enabled for this event.", 403
 
@@ -1109,6 +1313,9 @@ def qrcode_image(reg_id):
 # ==========================================================
 @routes.route("/download-certificate/<reg_id>")
 def download_certificate(reg_id):
+    participant = Participant.query.filter_by(reg_id=reg_id).first()
+    if participant and not registration_is_complete(participant):
+        return "Complete payment to confirm this registration.", 403
 
     filepath = os.path.join(
         "static",
@@ -1148,11 +1355,12 @@ def downloads():
 
     certificate_ready = bool(
         participant
+        and registration_is_complete(participant)
         and participant.event
         and participant.event.certificate_enabled
     )
-    acknowledgement_ready = bool(participant and participant.event and participant.event.acknowledgement_enabled)
-    qr_ready = bool(participant and participant.event and participant.event.qr_sharing_enabled)
+    acknowledgement_ready = bool(participant and registration_is_complete(participant) and participant.event and participant.event.acknowledgement_enabled)
+    qr_ready = bool(participant and registration_is_complete(participant) and participant.event and participant.event.qr_sharing_enabled)
 
     return render_template(
         "downloads.html",
@@ -1183,6 +1391,15 @@ def download_certificate_secure():
             error="No matching registration was found.",
             certificate_ready=False,
         )
+
+    if not registration_is_complete(participant):
+        return render_template(
+            "downloads.html",
+            participant=participant,
+            searched=True,
+            error="Complete payment to confirm this registration.",
+            certificate_ready=False,
+        ), 403
 
     if not participant.event or not participant.event.certificate_enabled:
         return render_template(
@@ -1227,7 +1444,7 @@ def secure_download_participant():
 @routes.route("/download-code-secure", methods=["POST"])
 def download_code_secure():
     participant = secure_download_participant()
-    if not participant or not participant.event or not participant.event.qr_sharing_enabled:
+    if not participant or not registration_is_complete(participant) or not participant.event or not participant.event.qr_sharing_enabled:
         return redirect(url_for("routes.downloads"))
 
     filepath = os.path.join(QR_FOLDER, f"{participant.reg_id}.png")
@@ -1240,7 +1457,7 @@ def download_code_secure():
 @routes.route("/download-acknowledgement-secure", methods=["POST"])
 def download_acknowledgement_secure():
     participant = secure_download_participant()
-    if not participant or not participant.event or not participant.event.acknowledgement_enabled:
+    if not participant or not registration_is_complete(participant) or not participant.event or not participant.event.acknowledgement_enabled:
         return redirect(url_for("routes.downloads"))
 
     response = make_response(render_template("acknowledgement_download.html", participant=participant))
@@ -1258,6 +1475,9 @@ def download_acknowledgement_secure():
 def certificate(id):
 
     participant = Participant.query.get_or_404(id)
+
+    if not registration_is_complete(participant):
+        return "Complete payment to confirm this registration.", 403
 
     if not participant.event or not participant.event.certificate_enabled:
         return "Certificate download is not enabled for this event.", 403

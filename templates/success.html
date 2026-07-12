@@ -138,6 +138,8 @@ body{
 
 <body>
 
+{% set registration_complete = not (participant.event and participant.event.payment_enabled and participant.event.payment_gateway == 'razorpay' and participant.payment_status != 'paid') %}
+
 <div class="container py-5">
 
 <div class="row justify-content-center">
@@ -149,23 +151,29 @@ body{
 <div class="header">
 
 <div class="success-icon">
-<i class="fa-solid fa-circle-check"></i>
+<i class="fa-solid {{ 'fa-circle-check' if registration_complete else 'fa-clock' }}"></i>
 </div>
 
-<h2>Registration Successful</h2>
+<h2>{{ 'Registration Successful' if registration_complete else 'Payment Required' }}</h2>
 
-<p>Your registration has been completed successfully.</p>
+<p>{{ 'Your registration has been completed successfully.' if registration_complete else 'Complete the payment below to confirm your registration.' }}</p>
 
 </div>
 
 <div class="card-body p-4">
 
+{% if registration_complete %}
 <div class="alert alert-success text-center">
 <h5 class="mb-0">
 Registration ID :
 <strong>{{ participant.reg_id }}</strong>
 </h5>
 </div>
+{% else %}
+<div class="alert alert-warning text-center mb-4">
+Your details are saved temporarily. The registration ID and acknowledgement will be issued after successful payment verification.
+</div>
+{% endif %}
 
 {% if participant.event %}
 <div class="alert alert-primary text-center">
@@ -185,7 +193,7 @@ Registration ID :
 </div>
 {% endif %}
 
-{% if participant.event and participant.event.acknowledgement_enabled and (participant.event.sponsor_brand or participant.event.sponsor_logo or participant.event.sponsor_image) %}
+{% if registration_complete and participant.event and participant.event.acknowledgement_enabled and (participant.event.sponsor_brand or participant.event.sponsor_logo or participant.event.sponsor_image) %}
 {% set sponsor_fit = participant.event.sponsor_image_fit or 'contain' %}
 {% set logo_position = participant.event.sponsor_logo_position or 'left' %}
 {% set banner_position = participant.event.sponsor_banner_position or 'right' %}
@@ -218,14 +226,20 @@ Registration ID :
 
 {% if participant.event and participant.event.payment_enabled %}
 <div class="alert alert-warning">
-    <strong>Payment Gateway Enabled</strong>
+    <strong>{% if participant.payment_status == 'paid' %}Payment received{% else %}Payment Gateway Enabled{% endif %}</strong>
     {% if participant.event.payment_amount %}
     <div>Amount: Rs. {{ "%.2f"|format(participant.event.payment_amount) }}</div>
     {% endif %}
     {% if participant.event.payment_notes %}
     <div>{{ participant.event.payment_notes }}</div>
     {% endif %}
-    {% if participant.event.payment_link %}
+    {% if participant.event.payment_gateway == 'razorpay' and participant.payment_status != 'paid' %}
+        {% if razorpay_key_id %}
+        <div class="mt-2"><button id="razorpay-pay-button" class="btn btn-primary">Pay securely with Razorpay</button></div>
+        <small class="d-block mt-2 text-muted">Your registration is saved. Payment is marked complete only after secure Razorpay verification.</small>
+        <div id="razorpay-payment-message" class="mt-2" role="status" aria-live="polite"></div>
+        {% elif razorpay_error %}<div class="mt-2 text-danger">{{ razorpay_error }}</div>{% endif %}
+    {% elif participant.event.payment_link %}
     <div class="mt-2">
         <a href="{{ participant.event.payment_link }}" target="_blank" class="btn btn-sm btn-outline-primary">
             Open Payment Link
@@ -235,7 +249,87 @@ Registration ID :
 </div>
 {% endif %}
 
-{% if participant.event and participant.event.whatsapp_group_enabled and participant.event.whatsapp_group_link %}
+{% if participant.event and participant.event.payment_gateway == 'razorpay' and participant.payment_status != 'paid' and razorpay_key_id %}
+<script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+<script>
+const payButton = document.getElementById('razorpay-pay-button');
+const paymentMessage = document.getElementById('razorpay-payment-message');
+
+function showPaymentMessage(message, isError = true) {
+  paymentMessage.className = `mt-2 ${isError ? 'text-danger' : 'text-success'}`;
+  paymentMessage.textContent = message;
+}
+
+payButton.addEventListener('click', async function () {
+  payButton.disabled = true;
+  showPaymentMessage('Preparing secure checkout...', false);
+
+  try {
+    const orderResponse = await fetch({{ url_for('routes.create_razorpay_order_api')|tojson }}, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({participant_id: {{ participant.id|tojson }}})
+    });
+    const order = await orderResponse.json();
+    if (!orderResponse.ok || !order.ok) {
+      throw new Error(order.message || 'Could not create the payment order.');
+    }
+
+    const checkout = new Razorpay({
+      key: {{ razorpay_key_id|tojson }},
+      amount: order.amount,
+      currency: order.currency,
+      name: {{ participant.event.name|tojson }},
+      description: 'Registration payment',
+      order_id: order.order_id,
+      prefill: {name: {{ participant.teacher_name|tojson }}, contact: {{ participant.mobile|tojson }}, email: {{ participant.email|tojson }}},
+      modal: {
+        ondismiss: function () {
+          payButton.disabled = false;
+          showPaymentMessage('Payment was cancelled. You can try again.');
+        }
+      },
+      handler: async function (response) {
+        showPaymentMessage('Verifying payment...', false);
+        try {
+          const verifyResponse = await fetch({{ url_for('routes.verify_razorpay_payment')|tojson }}, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+              participant_id: {{ participant.id|tojson }},
+              razorpay_order_id: response.razorpay_order_id,
+              razorpay_payment_id: response.razorpay_payment_id,
+              razorpay_signature: response.razorpay_signature
+            })
+          });
+          const result = await verifyResponse.json();
+          if (!verifyResponse.ok || !result.ok) {
+            throw new Error(result.message || 'Payment verification failed.');
+          }
+          window.location.assign(result.redirect_url);
+        } catch (error) {
+          payButton.disabled = false;
+          showPaymentMessage(error.message || 'Could not verify payment. Please contact the event organiser.');
+        }
+      }
+    });
+
+    checkout.on('payment.failed', function (response) {
+      payButton.disabled = false;
+      const reason = response.error && response.error.description;
+      showPaymentMessage(reason || 'Payment failed. Please try again.');
+    });
+    paymentMessage.textContent = '';
+    checkout.open();
+  } catch (error) {
+    payButton.disabled = false;
+    showPaymentMessage(error.message || 'Could not start Razorpay checkout. Please try again.');
+  }
+});
+</script>
+{% endif %}
+
+{% if registration_complete and participant.event and participant.event.whatsapp_group_enabled and participant.event.whatsapp_group_link %}
 <div class="alert alert-success">
     <strong>WhatsApp Group:</strong>
     Join the participant group for event updates.
@@ -273,10 +367,12 @@ class="participant-photo">
 
 <table class="table table-bordered">
 
+{% if registration_complete %}
 <tr>
 <th>Registration ID</th>
 <td>{{ participant.reg_id }}</td>
 </tr>
+{% endif %}
 
 {% if participant.event %}
 <tr>
@@ -354,7 +450,7 @@ class="participant-photo">
 
 </div>
 
-{% if participant.event and participant.event.qr_sharing_enabled %}
+{% if registration_complete and participant.event and participant.event.qr_sharing_enabled %}
 <hr>
 
 <div class="text-center">
@@ -393,7 +489,7 @@ Share QR Code
 
 <div class="text-center mt-4">
 
-{% if participant.event and participant.event.certificate_enabled %}
+{% if registration_complete and participant.event and participant.event.certificate_enabled %}
 <a
 href="/certificate/{{ participant.id }}"
 class="btn btn-success">
@@ -404,7 +500,7 @@ Download Certificate
 </a>
 {% endif %}
 
-{% if whatsapp_link %}
+{% if registration_complete and whatsapp_link %}
 <a
 href="{{ whatsapp_link }}"
 target="_blank"
@@ -414,7 +510,7 @@ Send WhatsApp Acknowledgement
 </a>
 {% endif %}
 
-{% if participant.event and participant.event.acknowledgement_enabled %}
+{% if registration_complete and participant.event and participant.event.acknowledgement_enabled %}
 <button
 onclick="window.print()"
 class="btn btn-info text-white">

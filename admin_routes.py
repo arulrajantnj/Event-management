@@ -2,6 +2,7 @@ from flask import Blueprint, render_template, request, redirect, session, send_f
 from models import (
     db,
     Event,
+    HomepagePromotion,
     EventField,
     ExamAnswer,
     ExamAttempt,
@@ -83,6 +84,16 @@ CODE_FIELD_CHOICES = [
     ("block", "Block"),
 ]
 
+WHATSAPP_FIELD_CHOICES = [
+    ("event_name", "Event name"),
+    ("reg_id", "Registration ID"),
+    ("participant_name", "Participant name"),
+    ("mobile", "Mobile number"),
+    ("email", "Email address"),
+    ("school_name", "School / organization"),
+    ("code_link", "QR / barcode image link"),
+]
+
 SYSTEM_FIELD_CHOICES = [
     ("salutation", "Salutation"),
     ("teacher_name", "Name Field"),
@@ -97,9 +108,11 @@ SYSTEM_FIELD_CHOICES = [
 
 PROTECTED_FIELD_NAMES = {"teacher_name", "mobile"}
 SPONSOR_UPLOAD_FOLDER = os.path.join("static", "sponsors")
+PROMOTION_UPLOAD_FOLDER = os.path.join("static", "promotions")
 ALLOWED_IMAGE_EXTENSIONS = {"jpg", "jpeg", "png", "webp", "gif"}
 
 os.makedirs(SPONSOR_UPLOAD_FOLDER, exist_ok=True)
+os.makedirs(PROMOTION_UPLOAD_FOLDER, exist_ok=True)
 
 
 def checkbox_value(name):
@@ -138,6 +151,19 @@ def save_sponsor_upload(field_name, existing_filename=""):
 
     filename = f"{field_name}_{uuid.uuid4().hex[:12]}.{ext}"
     upload.save(os.path.join(SPONSOR_UPLOAD_FOLDER, filename))
+    return filename
+
+
+def save_promotion_upload(field_name, existing_filename=""):
+    upload = request.files.get(field_name)
+    if not upload or not upload.filename:
+        return existing_filename or ""
+    original = secure_filename(upload.filename)
+    ext = original.rsplit(".", 1)[-1].lower() if "." in original else ""
+    if ext not in ALLOWED_IMAGE_EXTENSIONS:
+        return existing_filename or ""
+    filename = f"promotion_{uuid.uuid4().hex[:12]}.{ext}"
+    upload.save(os.path.join(PROMOTION_UPLOAD_FOLDER, filename))
     return filename
 
 
@@ -229,6 +255,12 @@ def event_payload_from_form(event=None):
     reg_id_next_number = max(1, reg_id_next_number)
     reg_id_padding = min(max(1, reg_id_padding), 10)
 
+    whatsapp_group_link = request.form.get("whatsapp_group_link", "").strip()
+    # Admins commonly paste the invite code without a scheme. Browsers treat
+    # that as a relative URL, so make valid WhatsApp invite URLs explicit.
+    if whatsapp_group_link and not re.match(r"^https?://", whatsapp_group_link, re.I):
+        whatsapp_group_link = f"https://{whatsapp_group_link}"
+
     return {
         "name": request.form.get("name", "").strip(),
         "slug": request.form.get("slug", "").strip(),
@@ -253,16 +285,28 @@ def event_payload_from_form(event=None):
         "collect_school_area": True,
         "collect_block": True,
         "marquee_message": request.form.get("marquee_message", "").strip(),
+        "registration_header": request.form.get("registration_header", "").strip(),
+        "registration_instructions": request.form.get("registration_instructions", "").strip(),
+        "show_registration_header": checkbox_value("show_registration_header"),
+        "show_registration_instructions": checkbox_value("show_registration_instructions"),
+        "show_registration_sponsor": checkbox_value("show_registration_sponsor"),
         "hero_priority": max(request.form.get("hero_priority", 0, type=int) or 0, 0),
         "payment_enabled": payment_enabled,
         "payment_amount": payment_amount,
         "payment_link": request.form.get("payment_link", "").strip(),
         "payment_notes": request.form.get("payment_notes", "").strip(),
+        "payment_gateway": choice_value("payment_gateway", "manual", {"manual", "razorpay"}),
         "whatsapp_ack_enabled": checkbox_value("whatsapp_ack_enabled"),
         "whatsapp_template": request.form.get("whatsapp_template", "").strip(),
+        "whatsapp_ack_fields": "\n".join(request.form.getlist("whatsapp_ack_fields")),
         "whatsapp_group_enabled": checkbox_value("whatsapp_group_enabled"),
-        "whatsapp_group_link": request.form.get("whatsapp_group_link", "").strip(),
+        "whatsapp_group_link": whatsapp_group_link,
         "acknowledgement_enabled": checkbox_value("acknowledgement_enabled"),
+        "acknowledgement_instructions": request.form.get("acknowledgement_instructions", "").strip(),
+        "show_acknowledgement_instructions": checkbox_value("show_acknowledgement_instructions"),
+        "acknowledgement_thank_you": request.form.get("acknowledgement_thank_you", "").strip(),
+        "show_acknowledgement_thank_you": checkbox_value("show_acknowledgement_thank_you"),
+        "show_acknowledgement_payment_details": checkbox_value("show_acknowledgement_payment_details"),
         "certificate_enabled": checkbox_value("certificate_enabled"),
         "attendance_enabled": checkbox_value("attendance_enabled"),
         "code_type": code_type,
@@ -1276,7 +1320,57 @@ def events():
         events=events,
         registration_type_choices=REGISTRATION_TYPE_CHOICES,
         code_field_choices=CODE_FIELD_CHOICES
+        ,whatsapp_field_choices=WHATSAPP_FIELD_CHOICES
     )
+
+
+@admin_bp.route("/admin/promotions", methods=["GET", "POST"])
+def promotions():
+    if "admin" not in session:
+        return redirect(url_for("routes.login"))
+
+    if request.method == "POST":
+        action = request.form.get("action", "save")
+        promotion_id = request.form.get("promotion_id", type=int)
+        promotion = HomepagePromotion.query.get(promotion_id) if promotion_id else None
+
+        if action == "delete" and promotion:
+            db.session.delete(promotion)
+            db.session.commit()
+            return redirect(url_for("admin.promotions"))
+
+        if action == "toggle" and promotion:
+            promotion.is_active = not promotion.is_active
+            db.session.commit()
+            return redirect(url_for("admin.promotions"))
+
+        title = request.form.get("title", "").strip()
+        if title:
+            if not promotion:
+                promotion = HomepagePromotion(title=title)
+                db.session.add(promotion)
+            promotion.title = title
+            promotion.message = request.form.get("message", "").strip()
+            promotion.link_url = request.form.get("link_url", "").strip()
+            promotion.is_active = checkbox_value("is_active")
+            promotion.show_before_priority = checkbox_value("show_before_priority")
+            promotion.sort_order = max(request.form.get("sort_order", 0, type=int) or 0, 0)
+            promotion.layout = choice_value("layout", "banner", {"banner", "notice"})
+            promotion.image_fit = choice_value("image_fit", "cover", {"cover", "contain"})
+            color = request.form.get("accent_color", "#0d6efd").strip()
+            promotion.accent_color = color if re.fullmatch(r"#[0-9a-fA-F]{6}", color) else "#0d6efd"
+            promotion.image_filename = save_promotion_upload(
+                "image", promotion.image_filename if promotion.id else ""
+            )
+            db.session.commit()
+        return redirect(url_for("admin.promotions"))
+
+    promotion_rows = HomepagePromotion.query.order_by(
+        HomepagePromotion.sort_order.desc(), HomepagePromotion.id.desc()
+    ).all()
+    edit_id = request.args.get("edit", type=int)
+    editing = HomepagePromotion.query.get(edit_id) if edit_id else None
+    return render_template("admin/promotions.html", promotions=promotion_rows, editing=editing)
 
 
 @admin_bp.route("/admin/events/<int:id>/edit", methods=["GET", "POST"])
@@ -1311,6 +1405,7 @@ def edit_event(id):
         field_type_choices=FIELD_TYPE_CHOICES,
         data_type_choices=DATA_TYPE_CHOICES,
         code_field_choices=CODE_FIELD_CHOICES,
+        whatsapp_field_choices=WHATSAPP_FIELD_CHOICES,
         system_field_choices=SYSTEM_FIELD_CHOICES
     )
 

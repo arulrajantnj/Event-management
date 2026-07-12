@@ -1,30 +1,34 @@
-<div id="carouselExample" class="carousel slide poster-carousel mt-4" data-bs-ride="carousel">
+{% set carousel_promotions = before_priority_promotions if before_priority_promotions is defined else after_priority_promotions %}
+{% if carousel_promotions %}
+<div id="promotionCarousel" class="carousel slide poster-carousel mt-4" data-bs-ride="carousel">
 
     <div class="carousel-inner rounded shadow">
 
-        <div class="carousel-item active">
-            <img src="{{ url_for('static', filename='images/gallery3.png') }}"
-                 class="d-block w-100 poster-slider-img"
-                 alt="Event Banner">
+        {% for promotion in carousel_promotions %}
+        <div class="carousel-item {% if loop.first %}active{% endif %}">
+            {% if promotion.link_url %}
+            <a href="{{ promotion.link_url }}" class="promotion-link">
+            {% endif %}
+            <article class="promotion-slide promotion-{{ promotion.layout }}" data-accent-color="{{ promotion.accent_color }}">
+                {% if promotion.image_filename %}
+                <img src="{{ url_for('static', filename='promotions/' ~ promotion.image_filename) }}" class="poster-slider-img promotion-image-{{ promotion.image_fit }}" alt="{{ promotion.title }}">
+                {% endif %}
+                <div class="promotion-copy {% if promotion.image_filename %}promotion-copy-overlay{% endif %}">
+                    <h2>{{ promotion.title }}</h2>
+                    {% if promotion.message %}<p>{{ promotion.message }}</p>{% endif %}
+                </div>
+            </article>
+            {% if promotion.link_url %}
+            </a>
+            {% endif %}
         </div>
-
-        <div class="carousel-item">
-            <img src="{{ url_for('static', filename='images/gallery1.jpg') }}"
-                 class="d-block w-100 poster-slider-img"
-                 alt="Gallery Image 1">
-        </div>
-
-        <div class="carousel-item">
-            <img src="{{ url_for('static', filename='images/gallery2.png') }}"
-                 class="d-block w-100 poster-slider-img"
-                 alt="Gallery Image 2">
-        </div>
+        {% endfor %}
 
     </div>
 
     <button class="carousel-control-prev"
             type="button"
-            data-bs-target="#carouselExample"
+                data-bs-target="#promotionCarousel"
             data-bs-slide="prev">
 
         <span class="carousel-control-prev-icon"></span>
@@ -33,7 +37,7 @@
 
     <button class="carousel-control-next"
             type="button"
-            data-bs-target="#carouselExample"
+                data-bs-target="#promotionCarousel"
             data-bs-slide="next">
 
         <span class="carousel-control-next-icon"></span>
@@ -41,3 +45,5 @@
     </button>
 
 </div>
+<script src="{{ url_for('static', filename='js/promotions.js') }}"></script>
+{% endif %}
