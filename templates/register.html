@@ -502,7 +502,7 @@ Registration Details
             name="{{ field.field_name }}"
             class="form-select"
             {% if field.is_required %}required{% endif %}>
-            <option value="">Select {{ field.field_label }}</option>
+            <option value="" {% if not form_values.get(field.field_name, '') %}selected{% endif %}>{{ field.placeholder or 'Select' }}</option>
             {% for option in field.options %}
             <option value="{{ option }}" {% if form_values.get(field.field_name, '') == option %}selected{% endif %}>{{ option }}</option>
             {% endfor %}
