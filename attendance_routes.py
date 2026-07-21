@@ -17,6 +17,7 @@ from flask import (
 from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
 from werkzeug.security import check_password_hash, generate_password_hash
+from extensions import limiter
 
 from attendance_service import (
     admin_name,
@@ -122,6 +123,7 @@ def scanner():
 
 
 @attendance_bp.route("/attendance/scanner-login", methods=["GET", "POST"])
+@limiter.limit("5 per minute", methods=["POST"])
 def scanner_login():
     if request.method == "POST":
         username = (request.form.get("username") or "").strip()
@@ -292,6 +294,7 @@ def settings():
 
 
 @attendance_bp.route("/api/attendance/scan", methods=["POST"])
+@limiter.limit("60 per minute")
 @json_scanner_or_admin_required
 def api_scan():
     payload = request.get_json(silent=True) or request.form
@@ -306,6 +309,7 @@ def api_scan():
 
 
 @attendance_bp.route("/api/attendance/manual", methods=["POST"])
+@limiter.limit("30 per minute")
 @json_admin_required
 def api_manual():
     payload = request.get_json(silent=True) or request.form

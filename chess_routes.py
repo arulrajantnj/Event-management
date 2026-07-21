@@ -9,6 +9,7 @@ from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
 from reportlab.lib.utils import ImageReader
 from werkzeug.security import check_password_hash, generate_password_hash
+from extensions import limiter
 from models import (db, ChessAgeGroup, ChessAnnouncement, ChessAuditLog, ChessOrbiter,
                     ChessPairing, ChessParticipant, ChessRoom, ChessRoomAssignment,
                     ChessRound, ChessStanding, ChessTournament, ChessApiToken, ChessCertificate,
@@ -237,6 +238,7 @@ def admin_age_group(age_group_id):
 
 
 @chess_bp.route("/chess-staff-login", methods=["GET", "POST"])
+@limiter.limit("5 per minute", methods=["POST"])
 def staff_login():
     error = ""
     if request.method == "POST":
@@ -360,6 +362,7 @@ def api_live(tournament_id):
 
 
 @chess_bp.route("/api/chess/token", methods=["POST"])
+@limiter.limit("5 per minute")
 def api_token():
     staff = ChessStaff.query.filter_by(username=request.form.get("username", "").strip(), is_active=True).first()
     if not staff or not check_password_hash(staff.password_hash, request.form.get("password", "")): abort(401)
@@ -377,6 +380,7 @@ def api_admin_rounds(tournament_id):
 
 
 @chess_bp.route("/chess-orbiter-login", methods=["GET", "POST"])
+@limiter.limit("5 per minute", methods=["POST"])
 def orbiter_login():
     error = ""
     if request.method == "POST":

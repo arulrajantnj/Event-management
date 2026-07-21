@@ -8,6 +8,8 @@ from flask import (
     url_for,
     Response,
     make_response,
+    jsonify,
+    current_app,
 )
 
 from sqlalchemy.exc import IntegrityError
@@ -19,6 +21,7 @@ from models import (
     ExamAnswer,
     ExamAttempt,
     ExamQuestion,
+    ExamProctoringSnapshot,
     OnlineExam,
     Participant,
     Block,
@@ -38,9 +41,15 @@ import os
 import re
 import uuid
 import traceback
+from types import SimpleNamespace
+import base64
+import binascii
+import random
 import requests
 from urllib.parse import quote
 from werkzeug.security import check_password_hash
+from extensions import limiter
+from security import configured_admin_credentials_match
 from PIL import Image, ImageDraw, ImageFont
 
 # ==========================================================
@@ -252,6 +261,7 @@ def public_competition_results():
 
 
 @routes.route("/judge/login", methods=["GET", "POST"])
+@limiter.limit("5 per minute", methods=["POST"])
 def judge_login():
     error = ""
     if request.method == "POST":
@@ -777,6 +787,164 @@ def recalculate_attempt_scores(attempt):
     attempt.evaluation_status = "pending_review" if pending else "evaluated"
 
 
+def attempt_question_ids(attempt):
+    question_ids = attempt.question_order()
+    if question_ids:
+        return question_ids
+    return [answer.question_id for answer in attempt.answers]
+
+
+def select_attempt_questions(exam):
+    active_questions = [question for question in exam.questions if question.is_active]
+    selected = []
+    pooled_ids = set()
+    rng = random.SystemRandom()
+
+    for pool in exam.question_pools:
+        if not pool.is_active:
+            continue
+        candidates = [question for question in pool.questions if question.is_active]
+        pooled_ids.update(question.id for question in candidates)
+        draw_count = int(pool.questions_to_draw or 0)
+        if draw_count > 0 and draw_count < len(candidates):
+            candidates = rng.sample(candidates, draw_count)
+        selected.extend(candidates)
+
+    selected.extend(
+        question for question in active_questions
+        if question.pool_id is None or question.id not in pooled_ids
+    )
+    selected = list({question.id: question for question in selected}.values())
+
+    if exam.randomize_questions:
+        rng.shuffle(selected)
+    else:
+        selected.sort(key=lambda item: (item.sort_order or 0, item.id))
+
+    question_count = int(exam.question_count or 0)
+    if question_count > 0:
+        selected = selected[:question_count]
+    return selected
+
+
+def create_in_progress_attempt(exam, participant):
+    now = datetime.utcnow()
+    questions = select_attempt_questions(exam)
+    question_ids = [question.id for question in questions]
+    option_orders = {}
+    rng = random.SystemRandom()
+
+    for question in questions:
+        if question.question_type == "descriptive":
+            continue
+        keys = [key for key, value in question.options_map().items() if value]
+        if exam.shuffle_options:
+            rng.shuffle(keys)
+        option_orders[str(question.id)] = keys
+
+    attempt = ExamAttempt(
+        exam_id=exam.id,
+        participant_id=participant.id,
+        started_at=now,
+        deadline_at=exam_deadline(exam, now),
+        status="in_progress",
+        question_order_json=json.dumps(question_ids),
+        option_order_json=json.dumps(option_orders),
+        last_saved_at=now,
+        total_questions=len(question_ids),
+        submitted_at=None,
+    )
+    db.session.add(attempt)
+    db.session.flush()
+    for question in questions:
+        db.session.add(
+            ExamAnswer(
+                attempt_id=attempt.id,
+                question_id=question.id,
+                marked_for_review=False,
+                saved_at=now,
+            )
+        )
+    db.session.commit()
+    return attempt
+
+
+def current_in_progress_attempt(exam, participant):
+    return ExamAttempt.query.filter_by(
+        exam_id=exam.id,
+        participant_id=participant.id,
+        status="in_progress",
+    ).order_by(ExamAttempt.started_at.desc()).first()
+
+
+def save_attempt_answer(attempt, question_id, value, marked_for_review=None):
+    if question_id not in attempt_question_ids(attempt):
+        return None
+    answer = ExamAnswer.query.filter_by(
+        attempt_id=attempt.id,
+        question_id=question_id,
+    ).first()
+    if not answer:
+        answer = ExamAnswer(attempt_id=attempt.id, question_id=question_id)
+        db.session.add(answer)
+    question = db.session.get(ExamQuestion, question_id)
+    if not question:
+        return None
+
+    if question.question_type == "descriptive":
+        answer.text_answer = str(value or "").strip()
+        answer.selected_option = None
+    else:
+        selected = str(value or "").strip().upper()
+        answer.selected_option = selected if question.options_map().get(selected) else None
+        answer.text_answer = None
+    if marked_for_review is not None:
+        answer.marked_for_review = (
+            marked_for_review
+            if isinstance(marked_for_review, bool)
+            else str(marked_for_review).strip().lower() in {"1", "true", "yes", "on"}
+        )
+    answer.saved_at = datetime.utcnow()
+    attempt.last_saved_at = answer.saved_at
+    return answer
+
+
+def finalize_attempt(attempt, violation_count=None):
+    if attempt.status != "in_progress":
+        return attempt
+    answers_map = {}
+    for answer in attempt.answers:
+        question = answer.question
+        if not question:
+            continue
+        if question.question_type == "descriptive":
+            answers_map[str(question.id)] = answer.text_answer or ""
+            answer.auto_score = 0
+            answer.is_correct = None
+        else:
+            selected = (answer.selected_option or "").upper()
+            answers_map[str(question.id)] = selected
+            answer.is_correct = bool(
+                selected and selected == (question.correct_option or "").upper()
+            )
+            if answer.is_correct:
+                answer.auto_score = float(question.marks or attempt.exam.marks_per_question or 1)
+            elif selected:
+                answer.auto_score = -float(attempt.exam.negative_marks or 0)
+            else:
+                answer.auto_score = 0
+
+    if violation_count is not None:
+        attempt.violation_count = max(attempt.violation_count or 0, int(violation_count or 0))
+    attempt.answers_json = json.dumps(answers_map)
+    attempt.status = "submitted"
+    attempt.submitted_at = datetime.utcnow()
+    attempt.last_saved_at = attempt.submitted_at
+    recalculate_attempt_scores(attempt)
+    db.session.commit()
+    return attempt
+
+
 # ==========================================================
 # REGISTER
 # ==========================================================
@@ -918,7 +1086,13 @@ def register():
         # -----------------------------
 
         photo = request.files.get("photo")
-        filename = ""
+        editing_preview = request.form.get("editing_preview") == "1"
+        previous_registration = session.get("registration", {}) if editing_preview else {}
+        filename = (
+            previous_registration.get("photo", "")
+            if previous_registration.get("event_id") == selected_event.id
+            else ""
+        )
 
         if field_state["collect_photo"] and photo and photo.filename != "":
 
@@ -1023,6 +1197,33 @@ def register():
 # ==========================================================
 # PREVIEW
 # ==========================================================
+@routes.route("/edit-registration")
+def edit_registration():
+    data = session.get("registration")
+    if not data:
+        return redirect(url_for("routes.register"))
+    event = Event.query.get(data.get("event_id"))
+    if not event or not event.is_active:
+        return redirect(url_for("routes.register"))
+    form_values = dict(data.get("field_values", {}))
+    if data.get("competition_id"):
+        form_values["competition_id"] = data["competition_id"]
+    return render_template(
+        "register.html",
+        events=active_events(),
+        selected_event=event,
+        selected_event_slug=event.slug,
+        competition_mode=bool(data.get("competition_id")),
+        competitions=Competition.query.filter_by(event_id=event.id, registration_enabled=True).order_by(Competition.name).all(),
+        certificate_image=current_certificate_image(),
+        field_state=event_field_state(event),
+        event_fields=registration_field_payload(event),
+        form_values=form_values,
+        editing_preview=True,
+        existing_photo=data.get("photo", ""),
+    )
+
+
 @routes.route("/preview")
 def preview():
 
@@ -1032,8 +1233,12 @@ def preview():
     participant = session["registration"].copy()
     event = Event.query.get(participant["event_id"])
 
-    # temp preview ID
-    participant["reg_id"] = f"PREVIEW{uuid.uuid4().hex[:6].upper()}"
+    # Keep one stable temporary ID while the candidate reviews and edits.
+    preview_id = session.get("certificate_preview_id")
+    if not preview_id:
+        preview_id = f"PREVIEW{uuid.uuid4().hex[:8].upper()}"
+        session["certificate_preview_id"] = preview_id
+    participant["reg_id"] = preview_id
 
     issue_date = datetime.today().strftime("%d-%m-%Y")
 
@@ -1044,16 +1249,47 @@ def preview():
     if active_template and active_template.image_path:
         template_image = f"certificate_templates/{active_template.image_path}"
 
-    # QR for preview
-    qr = qrcode.make(participant["reg_id"])
-    qr.save(os.path.join(QR_FOLDER, "preview_qr.png"))
+    certificate_preview_url = None
+    certificate_preview_error = None
+    if event and event.certificate_enabled:
+        preview_participant = SimpleNamespace(
+            reg_id=preview_id,
+            event_id=event.id,
+            event=event,
+            salutation=participant.get("salutation", ""),
+            teacher_name=participant.get("teacher_name", ""),
+            mobile=participant.get("mobile", ""),
+            email=participant.get("email", ""),
+            designation=participant.get("designation", ""),
+            subject=participant.get("subject", ""),
+            school_name=participant.get("school_name", ""),
+            school_area=participant.get("school_area", ""),
+            block=participant.get("block", ""),
+            photo=participant.get("photo", ""),
+        )
+        preview_filename = f"preview_{preview_id}.png"
+        preview_result = generate_certificate(
+            preview_participant,
+            persist=False,
+            output_filename=preview_filename,
+        )
+        if preview_result.get("success"):
+            certificate_preview_url = url_for(
+                "static",
+                filename=f"generated_certificates/{preview_filename}",
+                v=int(datetime.utcnow().timestamp()),
+            )
+        else:
+            certificate_preview_error = preview_result.get("error", "preview_failed")
 
     return render_template(
         "preview.html",
         participant=participant,
         event=event,
         issue_date=issue_date,
-        template_image=template_image
+        template_image=template_image,
+        certificate_preview_url=certificate_preview_url,
+        certificate_preview_error=certificate_preview_error,
     )
 
 
@@ -1199,6 +1435,17 @@ def confirm_registration():
         razorpay_error = "Razorpay is not configured. Please contact the event organiser."
 
     session.pop("registration", None)
+    preview_id = session.pop("certificate_preview_id", None)
+    if preview_id:
+        for preview_path in (
+            os.path.join(CERT_FOLDER, f"preview_{preview_id}.png"),
+            os.path.join(QR_FOLDER, f"{preview_id}.png"),
+        ):
+            try:
+                if os.path.exists(preview_path):
+                    os.remove(preview_path)
+            except OSError:
+                current_app.logger.warning("Could not remove preview file: %s", preview_path)
 
     return render_template(
         "success.html",
@@ -1211,6 +1458,7 @@ def confirm_registration():
 
 
 @routes.route("/api/create-order", methods=["POST"])
+@limiter.limit("20 per minute")
 def create_razorpay_order_api():
     payload = request.get_json(silent=True) or request.form
     try:
@@ -1236,6 +1484,7 @@ def create_razorpay_order_api():
 
 @routes.route("/payment/razorpay/verify", methods=["POST"])
 @routes.route("/api/verify-payment", methods=["POST"])
+@limiter.limit("20 per minute")
 def verify_razorpay_payment():
     payload = request.get_json(silent=True) or request.form
     try:
@@ -1316,6 +1565,8 @@ def download_certificate(reg_id):
     participant = Participant.query.filter_by(reg_id=reg_id).first()
     if participant and not registration_is_complete(participant):
         return "Complete payment to confirm this registration.", 403
+    if participant and not participant.certificate_approved:
+        return "Certificate is awaiting administrator preview approval.", 403
 
     filepath = os.path.join(
         "static",
@@ -1358,6 +1609,7 @@ def downloads():
         and registration_is_complete(participant)
         and participant.event
         and participant.event.certificate_enabled
+        and participant.certificate_approved
     )
     acknowledgement_ready = bool(participant and registration_is_complete(participant) and participant.event and participant.event.acknowledgement_enabled)
     qr_ready = bool(participant and registration_is_complete(participant) and participant.event and participant.event.qr_sharing_enabled)
@@ -1409,6 +1661,15 @@ def download_certificate_secure():
             error="Certificate download is not enabled for this event.",
             certificate_ready=False,
         )
+
+    if not participant.certificate_approved:
+        return render_template(
+            "downloads.html",
+            participant=participant,
+            searched=True,
+            error="Certificate is awaiting administrator preview approval.",
+            certificate_ready=False,
+        ), 403
 
     result = generate_certificate(participant)
 
@@ -1482,6 +1743,9 @@ def certificate(id):
     if not participant.event or not participant.event.certificate_enabled:
         return "Certificate download is not enabled for this event.", 403
 
+    if "admin" not in session and not participant.certificate_approved:
+        return "Certificate is awaiting administrator preview approval.", 403
+
     try:
         result = generate_certificate(participant)
 
@@ -1502,6 +1766,7 @@ def certificate(id):
 # EXAM LOGIN
 # ==========================================================
 @routes.route("/exam-login", methods=["GET", "POST"])
+@limiter.limit("5 per minute", methods=["POST"])
 def exam_login():
 
     if request.method == "POST":
@@ -1524,7 +1789,9 @@ def exam_login():
                 error="Invalid username, password, or exam access is not enabled for this event."
             )
 
+        session.clear()
         session["exam_participant_id"] = participant.id
+        session.permanent = True
         return redirect(url_for("routes.my_exams"))
 
     return render_template("exam_login.html")
@@ -1549,12 +1816,18 @@ def my_exams():
         OnlineExam.created_at.desc()
     ).all()
 
-    attempts = {
-        attempt.exam_id: attempt
-        for attempt in ExamAttempt.query.filter_by(
-            participant_id=participant.id
-        ).all()
-    }
+    all_attempts = ExamAttempt.query.filter_by(participant_id=participant.id).order_by(
+        ExamAttempt.started_at.desc()
+    ).all()
+    now = datetime.utcnow()
+    for attempt in all_attempts:
+        if attempt.status == "in_progress" and attempt.deadline_at and now >= attempt.deadline_at:
+            finalize_attempt(attempt)
+    attempts = {}
+    in_progress_attempts = {}
+    for attempt in all_attempts:
+        target = in_progress_attempts if attempt.status == "in_progress" else attempts
+        target.setdefault(attempt.exam_id, attempt)
 
     exam_status_map = {
         exam.id: exam_time_status(exam)
@@ -1567,6 +1840,7 @@ def my_exams():
         event=event,
         exams=exams,
         attempts=attempts,
+        in_progress_attempts=in_progress_attempts,
         exam_status_map=exam_status_map
     )
 
@@ -1580,20 +1854,27 @@ def take_exam(exam_id):
 
     exam = OnlineExam.query.get_or_404(exam_id)
 
-    if (
-        not exam.is_active or
-        exam.event_id != participant.event_id or
-        not participant.event.exam_enabled or
-        exam_time_status(exam) != "open"
+    if not exam.is_active or exam.event_id != participant.event_id or not participant.event.exam_enabled:
+        return redirect(url_for("routes.my_exams"))
+
+    attempt = current_in_progress_attempt(exam, participant)
+    now = datetime.utcnow()
+    if attempt and (
+        (attempt.deadline_at and now >= attempt.deadline_at)
+        or (exam.end_at and now >= exam.end_at)
     ):
+        finalize_attempt(attempt)
+        return redirect(url_for("routes.exam_result", attempt_id=attempt.id))
+
+    if exam_time_status(exam) != "open":
         return redirect(url_for("routes.my_exams"))
 
     submitted_attempts = ExamAttempt.query.filter_by(
         exam_id=exam.id,
         participant_id=participant.id
-    ).order_by(ExamAttempt.submitted_at.desc()).all()
+    ).filter(ExamAttempt.status != "in_progress").order_by(ExamAttempt.submitted_at.desc()).all()
 
-    if len(submitted_attempts) >= (exam.max_attempts or 1):
+    if not attempt and len(submitted_attempts) >= (exam.max_attempts or 1):
         return redirect(
             url_for(
                 "routes.exam_result",
@@ -1601,41 +1882,45 @@ def take_exam(exam_id):
             )
         )
 
-    questions = [
-        question
-        for question in exam.questions
-        if question.is_active
-    ]
+    if not attempt:
+        attempt = create_in_progress_attempt(exam, participant)
 
-    start_session_key = f"exam_started_at_{exam.id}"
-    started_at_raw = session.get(start_session_key)
-    started_at = None
-
-    if started_at_raw:
-        try:
-            started_at = datetime.fromisoformat(started_at_raw)
-        except ValueError:
-            started_at = None
-
-    if not started_at:
-        started_at = datetime.utcnow()
-        session[start_session_key] = started_at.isoformat()
-        session.modified = True
-
-    deadline_at = exam_deadline(exam, started_at)
+    question_lookup = {
+        question.id: question
+        for question in ExamQuestion.query.filter(ExamQuestion.id.in_(attempt_question_ids(attempt))).all()
+    }
+    answer_lookup = {answer.question_id: answer for answer in attempt.answers}
+    option_orders = attempt.option_order()
+    question_items = []
+    for question_id in attempt_question_ids(attempt):
+        question = question_lookup.get(question_id)
+        if not question:
+            continue
+        option_keys = option_orders.get(str(question.id)) or list(question.options_map())
+        options = [
+            {"label": chr(65 + index), "value": key, "text": question.options_map().get(key, "")}
+            for index, key in enumerate(option_keys)
+            if question.options_map().get(key, "")
+        ]
+        question_items.append({
+            "question": question,
+            "answer": answer_lookup.get(question.id),
+            "options": options,
+        })
 
     return render_template(
         "take_exam.html",
         participant=participant,
         exam=exam,
-        questions=questions,
-        started_at=started_at,
-        deadline_at=deadline_at,
-        server_now=datetime.utcnow(),
+        question_items=question_items,
+        attempt=attempt,
+        deadline_at=attempt.deadline_at,
+        server_now=now,
     )
 
 
 @routes.route("/exam/<int:exam_id>/submit", methods=["POST"])
+@limiter.limit("10 per minute")
 def submit_exam(exam_id):
 
     participant = current_exam_participant()
@@ -1646,108 +1931,117 @@ def submit_exam(exam_id):
     if not exam.is_active or exam.event_id != participant.event_id:
         return redirect(url_for("routes.my_exams"))
 
-    if exam_time_status(exam) == "upcoming":
+    attempt_id = request.form.get("attempt_id", type=int)
+    attempt = db.session.get(ExamAttempt, attempt_id) if attempt_id else current_in_progress_attempt(exam, participant)
+    if not attempt or attempt.participant_id != participant.id or attempt.exam_id != exam.id:
         return redirect(url_for("routes.my_exams"))
+    if attempt.status != "in_progress":
+        return redirect(url_for("routes.exam_result", attempt_id=attempt.id))
 
-    attempt_count = ExamAttempt.query.filter_by(
-        exam_id=exam.id,
-        participant_id=participant.id
-    ).count()
+    now = datetime.utcnow()
+    if (attempt.deadline_at and now >= attempt.deadline_at) or (exam.end_at and now >= exam.end_at):
+        finalize_attempt(attempt)
+        return redirect(url_for("routes.exam_result", attempt_id=attempt.id))
 
-    if attempt_count >= (exam.max_attempts or 1):
-        latest_attempt = ExamAttempt.query.filter_by(
-            exam_id=exam.id,
-            participant_id=participant.id
-        ).order_by(ExamAttempt.submitted_at.desc()).first()
-        if latest_attempt:
-            return redirect(url_for("routes.exam_result", attempt_id=latest_attempt.id))
-        return redirect(url_for("routes.my_exams"))
-
-    questions = [
-        question
-        for question in exam.questions
-        if question.is_active
-    ]
-
-    start_session_key = f"exam_started_at_{exam.id}"
-    started_at_raw = session.get(start_session_key)
-    started_at = None
-    if started_at_raw:
-        try:
-            started_at = datetime.fromisoformat(started_at_raw)
-        except ValueError:
-            started_at = None
-
-    if not started_at:
-        started_at = datetime.utcnow()
-
-    deadline_at = exam_deadline(exam, started_at)
-    submitted_at = datetime.utcnow()
-
-    if exam.end_at and submitted_at > exam.end_at and deadline_at and deadline_at <= exam.end_at:
-        submitted_at = exam.end_at
-
-    violation_count = request.form.get("violation_count", 0, type=int) or 0
-    if exam.auto_submit_on_violation and violation_count > (exam.tab_switch_limit or 0):
-        violation_count = exam.tab_switch_limit or violation_count
-
-    answers_map = {}
-    evaluation_status = "evaluated"
-
-    attempt = ExamAttempt(
-        exam_id=exam.id,
-        participant_id=participant.id,
-        started_at=started_at,
-        score=0,
-        total_marks=0,
-        total_questions=len(questions),
-        correct_answers=0,
-        evaluation_status=evaluation_status,
-        violation_count=violation_count,
-        answers_json="{}",
-        submitted_at=submitted_at,
-    )
-
-    db.session.add(attempt)
-    db.session.flush()
-
-    for question in questions:
-        if question.question_type == "descriptive":
-            text_answer = request.form.get(f"question_{question.id}", "").strip()
-            answers_map[str(question.id)] = text_answer
-            db.session.add(
-                ExamAnswer(
-                    attempt_id=attempt.id,
-                    question_id=question.id,
-                    text_answer=text_answer,
-                    auto_score=0,
-                    manual_score=None
-                )
-            )
-            attempt.evaluation_status = "pending_review"
-            continue
-
-        selected_option = request.form.get(f"question_{question.id}", "").strip().upper()
-        is_correct = bool(selected_option and selected_option == (question.correct_option or "").upper())
-        awarded = float(question.marks or exam.marks_per_question or 1) if is_correct else -float(exam.negative_marks or 0)
-        answers_map[str(question.id)] = selected_option
-        db.session.add(
-            ExamAnswer(
-                attempt_id=attempt.id,
-                question_id=question.id,
-                selected_option=selected_option,
-                is_correct=is_correct,
-                auto_score=awarded
-            )
+    review_ids = {
+        int(value) for value in request.form.getlist("marked_for_review") if str(value).isdigit()
+    }
+    for question_id in attempt_question_ids(attempt):
+        save_attempt_answer(
+            attempt,
+            question_id,
+            request.form.get(f"question_{question_id}", ""),
+            question_id in review_ids,
         )
 
-    attempt.answers_json = json.dumps(answers_map)
-    db.session.flush()
-    recalculate_attempt_scores(attempt)
-    db.session.commit()
-    session.pop(start_session_key, None)
+    violation_count = request.form.get("violation_count", 0, type=int) or 0
+    finalize_attempt(attempt, violation_count)
 
     return redirect(url_for("routes.exam_result", attempt_id=attempt.id))
+
+
+@routes.route("/api/exam/<int:exam_id>/attempt/<int:attempt_id>/autosave", methods=["POST"])
+@limiter.limit("120 per minute")
+def autosave_exam_answer(exam_id, attempt_id):
+    participant = current_exam_participant()
+    attempt = db.session.get(ExamAttempt, attempt_id)
+    if not participant or not attempt or attempt.participant_id != participant.id or attempt.exam_id != exam_id:
+        return jsonify({"error": "Unauthorized attempt."}), 403
+    if attempt.status != "in_progress":
+        return jsonify({"status": "submitted", "result_url": url_for("routes.exam_result", attempt_id=attempt.id)})
+    now = datetime.utcnow()
+    if (attempt.deadline_at and now >= attempt.deadline_at) or (attempt.exam.end_at and now >= attempt.exam.end_at):
+        finalize_attempt(attempt)
+        return jsonify({"status": "submitted", "result_url": url_for("routes.exam_result", attempt_id=attempt.id)})
+
+    payload = request.get_json(silent=True) or {}
+    question_id = payload.get("question_id")
+    try:
+        question_id = int(question_id)
+    except (TypeError, ValueError):
+        return jsonify({"error": "Invalid question."}), 400
+    answer = save_attempt_answer(
+        attempt,
+        question_id,
+        payload.get("answer", ""),
+        payload.get("marked_for_review"),
+    )
+    if not answer:
+        return jsonify({"error": "Question is not part of this attempt."}), 400
+    try:
+        reported_violations = int(payload.get("violation_count") or 0)
+    except (TypeError, ValueError):
+        reported_violations = 0
+    attempt.violation_count = max(attempt.violation_count or 0, reported_violations)
+    db.session.commit()
+    return jsonify({
+        "status": "saved",
+        "question_id": question_id,
+        "marked_for_review": answer.marked_for_review,
+        "saved_at": answer.saved_at.isoformat(),
+        "deadline_at": attempt.deadline_at.isoformat() if attempt.deadline_at else None,
+    })
+
+
+@routes.route("/api/exam/<int:exam_id>/attempt/<int:attempt_id>/proctoring", methods=["POST"])
+@limiter.limit("30 per minute")
+def upload_exam_proctoring_snapshot(exam_id, attempt_id):
+    participant = current_exam_participant()
+    attempt = db.session.get(ExamAttempt, attempt_id)
+    if (
+        not participant or not attempt or attempt.participant_id != participant.id
+        or attempt.exam_id != exam_id or attempt.status != "in_progress"
+        or not attempt.exam.webcam_proctoring
+    ):
+        return jsonify({"error": "Webcam proctoring is not available."}), 403
+    payload = request.get_json(silent=True) or {}
+    image_data = str(payload.get("image", ""))
+    if "," in image_data:
+        image_data = image_data.split(",", 1)[1]
+    try:
+        raw = base64.b64decode(image_data, validate=True)
+    except (ValueError, binascii.Error):
+        return jsonify({"error": "Invalid image."}), 400
+    if not raw or len(raw) > 1_500_000:
+        return jsonify({"error": "Image is empty or too large."}), 400
+    if not (raw.startswith(b"\xff\xd8") and raw.endswith(b"\xff\xd9")):
+        return jsonify({"error": "Only JPEG webcam captures are accepted."}), 400
+
+    relative_dir = os.path.join("proctoring", f"attempt_{attempt.id}")
+    absolute_dir = os.path.join(current_app.instance_path, relative_dir)
+    os.makedirs(absolute_dir, exist_ok=True)
+    filename = f"{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:8]}.jpg"
+    relative_path = os.path.join(relative_dir, filename)
+    with open(os.path.join(current_app.instance_path, relative_path), "wb") as image_file:
+        image_file.write(raw)
+    snapshot = ExamProctoringSnapshot(
+        attempt_id=attempt.id,
+        file_path=relative_path,
+        capture_type=str(payload.get("capture_type", "periodic"))[:30],
+    )
+    db.session.add(snapshot)
+    db.session.commit()
+    return jsonify({"status": "captured", "captured_at": snapshot.captured_at.isoformat()})
 
 
 @routes.route("/exam-result/<int:attempt_id>")
@@ -1806,6 +2100,7 @@ def exam_logout():
 # LOGIN
 # ==========================================================
 @routes.route("/login", methods=["GET", "POST"])
+@limiter.limit("5 per minute", methods=["POST"])
 def login():
 
     if request.method == "POST":
@@ -1813,8 +2108,10 @@ def login():
         username = request.form.get("username")
         password = request.form.get("password")
 
-        if username == "Arulrajan" and password == "Arulabisri@1623":
+        if configured_admin_credentials_match(username, password):
+            session.clear()
             session["admin"] = True
+            session.permanent = True
             return redirect(url_for("admin.admin"))
 
         return render_template(

@@ -99,6 +99,10 @@ Vandurai Events
 
 <div class="card-body">
 
+{% if error %}
+<div class="alert alert-danger" role="alert">{{ error }}</div>
+{% endif %}
+
 <form method="POST">
 
 <div class="mb-3">

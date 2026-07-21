@@ -1,12 +1,15 @@
-from flask import Flask
+from flask import Flask, render_template
 import os
 from urllib.parse import quote_plus
 
 from dotenv import load_dotenv
 from flask_migrate import Migrate
+from flask_wtf.csrf import CSRFError
 from sqlalchemy.exc import OperationalError
 
 from models import db, Block, Event, EventField
+from extensions import csrf, limiter
+from security import configure_security, install_security_hooks
 
 from routes import routes as routes_bp
 from attendance_routes import attendance_bp
@@ -21,8 +24,7 @@ from chess_routes import chess_bp
 load_dotenv()
 
 app = Flask(__name__)
-
-app.secret_key = "event_management_secret_key"
+configure_security(app)
 
 # ==========================
 # Database
@@ -79,6 +81,8 @@ os.makedirs("qrcodes", exist_ok=True)
 
 db.init_app(app)
 migrate = Migrate(app, db)
+csrf.init_app(app)
+limiter.init_app(app)
 
 
 # ==========================
@@ -90,6 +94,7 @@ app.register_blueprint(attendance_bp)
 app.register_blueprint(admin_bp)
 app.register_blueprint(layout_bp)
 app.register_blueprint(chess_bp)
+install_security_hooks(app)
 
 
 @app.errorhandler(OperationalError)
@@ -158,15 +163,21 @@ def database_connection_error(error):
     )
 
 
+@app.errorhandler(CSRFError)
+def csrf_error(error):
+    app.logger.warning("CSRF validation rejected request: %s", error.description)
+    return render_template("errors/400.html"), 400
+
+
+@app.errorhandler(429)
+def rate_limit_error(error):
+    return render_template("errors/429.html"), 429
+
+
 @app.errorhandler(500)
 def internal_server_error(error):
-    import traceback
-
-    tb = traceback.format_exc()
-    print("===== INTERNAL SERVER ERROR =====")
-    print(tb)
-    print("=================================")
-    return f"<h1>Internal Server Error</h1><pre>{tb}</pre>", 500
+    app.logger.exception("Unhandled application error", exc_info=error)
+    return render_template("errors/500.html"), 500
 
 # ==========================
 # Create Database Tables
@@ -423,4 +434,4 @@ def seed_data_command():
 # ==========================
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(debug=os.getenv("FLASK_DEBUG", "0") == "1")

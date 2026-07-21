@@ -65,6 +65,23 @@ body{
                         <span class="ms-3"><strong>Preview ID:</strong> {{ participant.reg_id }}</span>
                     </div>
 
+                    {% if event and event.certificate_enabled %}
+                    <div class="mt-4">
+                        <h4><i class="fa-solid fa-certificate text-primary"></i> Your Certificate Preview</h4>
+                        <p class="text-muted">Check your name, photo, school and wording carefully. Use <strong>Edit Details</strong> before confirming if anything is wrong.</p>
+                        {% if certificate_preview_url %}
+                        <div class="border rounded-3 bg-dark p-2 text-center overflow-auto">
+                            <img src="{{ certificate_preview_url }}" class="img-fluid" alt="Certificate preview" style="max-height:75vh">
+                        </div>
+                        <div class="alert alert-warning mt-2 mb-0">
+                            This is a preview only. Download becomes available after registration and administrator approval.
+                        </div>
+                        {% else %}
+                        <div class="alert alert-danger">Certificate preview could not be generated: {{ certificate_preview_error }}</div>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+
                     {% if event and event.payment_enabled %}
                     <div class="alert alert-warning">
                         <strong>Payment Enabled:</strong>
@@ -134,13 +151,14 @@ body{
 
                     <div class="row mt-4">
                         <div class="col-md-4 mb-3">
-                            <button type="button" onclick="history.back()" class="btn btn-warning btn-lg w-100">
+                            <a href="{{ url_for('routes.edit_registration') }}" class="btn btn-warning btn-lg w-100">
                                 <i class="fa-solid fa-pen-to-square"></i> Edit Details
-                            </button>
+                            </a>
                         </div>
 
                         <div class="col-md-4 mb-3">
                             <form action="{{ url_for('routes.confirm_registration') }}" method="POST">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                 <button type="submit" class="btn btn-success btn-lg w-100">
                                     <i class="fa-solid fa-check"></i> Confirm Registration
                                 </button>

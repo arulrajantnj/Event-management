@@ -443,6 +443,14 @@ class Participant(db.Model):
         default=False
     )
 
+    certificate_approved = db.Column(
+        db.Boolean,
+        default=False,
+        nullable=False
+    )
+
+    certificate_approved_at = db.Column(db.DateTime)
+
     # ----------------------------
     # EXAM LOGIN
     # ----------------------------
@@ -1026,6 +1034,12 @@ class OnlineExam(db.Model):
         nullable=False
     )
 
+    randomize_questions = db.Column(db.Boolean, default=False, nullable=False)
+    shuffle_options = db.Column(db.Boolean, default=False, nullable=False)
+    question_count = db.Column(db.Integer)
+    webcam_proctoring = db.Column(db.Boolean, default=False, nullable=False)
+    webcam_capture_interval = db.Column(db.Integer, default=60, nullable=False)
+
     # Results remain private until the administrator has reviewed and
     # explicitly approved them for the public Results page.
     public_results_published = db.Column(
@@ -1069,6 +1083,33 @@ class OnlineExam(db.Model):
         lazy=True
     )
 
+    question_pools = db.relationship(
+        "ExamQuestionPool",
+        back_populates="exam",
+        cascade="all, delete-orphan",
+        order_by="ExamQuestionPool.sort_order.asc(), ExamQuestionPool.id.asc()",
+        lazy=True,
+    )
+
+
+class ExamQuestionPool(db.Model):
+
+    __tablename__ = "exam_question_pools"
+    __table_args__ = (
+        db.UniqueConstraint("exam_id", "name", name="uq_exam_question_pool_name"),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    exam_id = db.Column(db.Integer, db.ForeignKey("online_exams.id"), nullable=False)
+    name = db.Column(db.String(120), nullable=False)
+    questions_to_draw = db.Column(db.Integer, default=0, nullable=False)
+    sort_order = db.Column(db.Integer, default=0, nullable=False)
+    is_active = db.Column(db.Boolean, default=True, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    exam = db.relationship("OnlineExam", back_populates="question_pools")
+    questions = db.relationship("ExamQuestion", back_populates="pool", lazy=True)
+
 
 # ==========================================================
 # EXAM QUESTIONS
@@ -1087,6 +1128,8 @@ class ExamQuestion(db.Model):
         db.ForeignKey("online_exams.id"),
         nullable=False
     )
+
+    pool_id = db.Column(db.Integer, db.ForeignKey("exam_question_pools.id"))
 
     question_text = db.Column(
         db.Text,
@@ -1165,6 +1208,8 @@ class ExamQuestion(db.Model):
         back_populates="questions"
     )
 
+    pool = db.relationship("ExamQuestionPool", back_populates="questions")
+
     answers = db.relationship(
         "ExamAnswer",
         back_populates="question",
@@ -1209,6 +1254,12 @@ class ExamAttempt(db.Model):
         default=datetime.utcnow
     )
 
+    status = db.Column(db.String(20), default="in_progress", nullable=False)
+    deadline_at = db.Column(db.DateTime)
+    question_order_json = db.Column(db.Text)
+    option_order_json = db.Column(db.Text)
+    last_saved_at = db.Column(db.DateTime)
+
     score = db.Column(
         db.Float,
         default=0,
@@ -1250,8 +1301,7 @@ class ExamAttempt(db.Model):
     )
 
     submitted_at = db.Column(
-        db.DateTime,
-        default=datetime.utcnow
+        db.DateTime
     )
 
     exam = db.relationship(
@@ -1272,6 +1322,14 @@ class ExamAttempt(db.Model):
         lazy=True
     )
 
+    proctoring_snapshots = db.relationship(
+        "ExamProctoringSnapshot",
+        back_populates="attempt",
+        cascade="all, delete-orphan",
+        order_by="ExamProctoringSnapshot.captured_at.asc()",
+        lazy=True,
+    )
+
     def answers_map(self):
         if not self.answers_json:
             return {}
@@ -1283,6 +1341,20 @@ class ExamAttempt(db.Model):
 
         return data if isinstance(data, dict) else {}
 
+    def question_order(self):
+        try:
+            values = json.loads(self.question_order_json or "[]")
+            return [int(value) for value in values]
+        except (TypeError, ValueError):
+            return []
+
+    def option_order(self):
+        try:
+            values = json.loads(self.option_order_json or "{}")
+            return values if isinstance(values, dict) else {}
+        except (TypeError, ValueError):
+            return {}
+
 
 # ==========================================================
 # EXAM ANSWERS
@@ -1290,6 +1362,9 @@ class ExamAttempt(db.Model):
 class ExamAnswer(db.Model):
 
     __tablename__ = "exam_answers"
+    __table_args__ = (
+        db.UniqueConstraint("attempt_id", "question_id", name="uq_exam_answer_attempt_question"),
+    )
 
     id = db.Column(
         db.Integer,
@@ -1330,6 +1405,9 @@ class ExamAnswer(db.Model):
         db.Float
     )
 
+    marked_for_review = db.Column(db.Boolean, default=False, nullable=False)
+    saved_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
     created_at = db.Column(
         db.DateTime,
         default=datetime.utcnow
@@ -1350,6 +1428,19 @@ class ExamAnswer(db.Model):
         if self.manual_score is not None:
             return float(self.manual_score)
         return float(self.auto_score or 0)
+
+
+class ExamProctoringSnapshot(db.Model):
+
+    __tablename__ = "exam_proctoring_snapshots"
+
+    id = db.Column(db.Integer, primary_key=True)
+    attempt_id = db.Column(db.Integer, db.ForeignKey("exam_attempts.id"), nullable=False)
+    file_path = db.Column(db.String(500), nullable=False)
+    capture_type = db.Column(db.String(30), default="periodic", nullable=False)
+    captured_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    attempt = db.relationship("ExamAttempt", back_populates="proctoring_snapshots")
 
 
 # ==========================================================
@@ -1430,6 +1521,11 @@ class CertificateLayout(db.Model):
     field_name = db.Column(
         db.String(50),
         nullable=False
+    )
+
+    text_content = db.Column(
+        db.Text,
+        nullable=True
     )
 
     x = db.Column(

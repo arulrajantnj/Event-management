@@ -600,26 +600,41 @@ No Photo
 
 {% if p.event and p.event.certificate_enabled %}
 <a
-href="/certificate/{{ p.id }}"
+href="{{ url_for('admin.certificate_preview', id=p.id) }}"
 class="btn btn-primary btn-sm btn-action">
 
 <i class="fa-solid fa-award"></i>
 
-Certificate
+Preview Certificate {% if p.certificate_approved %}<i class="fa-solid fa-circle-check text-success"></i>{% endif %}
 
 </a>
+
+<form method="POST" action="{{ url_for('admin.certificate_approval', id=p.id) }}">
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+<input type="hidden" name="action" value="{{ 'revoke' if p.certificate_approved else 'approve' }}">
+<input type="hidden" name="page" value="{{ participants.page }}">
+<input type="hidden" name="search" value="{{ search }}">
+<input type="hidden" name="event_id" value="{{ selected_event_id or '' }}">
+<button type="submit" class="btn btn-sm btn-action {{ 'btn-outline-danger' if p.certificate_approved else 'btn-success' }}"
+{% if not p.certificate_approved %}onclick="return confirm('Approve this certificate for participant download?')"{% endif %}>
+<i class="fa-solid {{ 'fa-ban' if p.certificate_approved else 'fa-circle-check' }}"></i>
+{{ 'Revoke Certificate' if p.certificate_approved else 'Approve Certificate' }}
+</button>
+</form>
 {% endif %}
 
-<a
-href="/delete/{{ p.id }}"
-class="btn btn-danger btn-sm btn-action"
-onclick="return confirm('Delete this participant?')">
+<form method="POST" action="{{ url_for('admin.delete_participant', id=p.id) }}" class="d-inline"
+onsubmit="return confirm('Delete this participant?')">
+
+<button type="submit" class="btn btn-danger btn-sm btn-action">
 
 <i class="fa-solid fa-trash"></i>
 
 Delete
 
-</a>
+</button>
+
+</form>
 
 </div>
 
@@ -916,25 +931,6 @@ location.reload();
 // ===========================
 // DELETE CONFIRMATION
 // ===========================
-
-document.querySelectorAll(".btn-danger").forEach(function(btn){
-
-btn.addEventListener("click",function(e){
-
-if(btn.href.includes("/delete/")){
-
-if(!confirm("Are you sure you want to delete this participant?")){
-
-e.preventDefault();
-
-}
-
-}
-
-});
-
-});
-
 
 // ===========================
 // SEARCH USING ENTER KEY

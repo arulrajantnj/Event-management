@@ -4,6 +4,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="csrf-token" content="{{ csrf_token() }}">
 
 <title>Certificate Layout Editor</title>
 
@@ -58,7 +59,40 @@
     font-size: 14px;
     font-weight: 600;
     line-height: 1.15;
-    white-space: nowrap;
+    white-space: normal;
+    overflow: hidden;
+}
+
+.draggable-field.selected .ui-resizable-handle {
+    display: block;
+    width: 12px;
+    height: 12px;
+    background: #dc3545;
+    border: 2px solid #fff;
+    border-radius: 50%;
+    box-shadow: 0 0 0 1px #dc3545;
+    z-index: 20;
+}
+
+.draggable-field.selected .ui-resizable-n,
+.draggable-field.selected .ui-resizable-s {
+    left: 50%;
+    margin-left: -6px;
+}
+
+.draggable-field.selected .ui-resizable-e,
+.draggable-field.selected .ui-resizable-w {
+    top: 50%;
+    margin-top: -6px;
+}
+
+.wording-content {
+    width: 100%;
+    height: 100%;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    overflow: hidden;
 }
 
 .photo-box {
@@ -103,8 +137,16 @@
 
 <div class="list-group">
 
+<button class="list-group-item list-group-item-action field-btn" data-field="appreciation_text">
+Appreciation Wording
+</button>
+
 <button class="list-group-item list-group-item-action field-btn" data-field="teacher_name">
 Teacher Name
+</button>
+
+<button class="list-group-item list-group-item-action field-btn" data-field="salutation">
+Salutation
 </button>
 
 <button class="list-group-item list-group-item-action field-btn" data-field="designation">
@@ -178,6 +220,48 @@ onerror="this.insertAdjacentHTML('afterend', '<div class=&quot;template-error&qu
 
 <hr>
 
+<div id="wordingProperty" class="mb-3 d-none">
+<label for="textContent" class="form-label">Certificate Wording</label>
+<div class="btn-toolbar gap-1 mb-2" id="wordingToolbar">
+<button type="button" class="btn btn-sm btn-outline-secondary rich-command" data-command="bold"><b>B</b></button>
+<button type="button" class="btn btn-sm btn-outline-secondary rich-command" data-command="italic"><i>I</i></button>
+<button type="button" class="btn btn-sm btn-outline-secondary rich-command" data-command="underline"><u>U</u></button>
+<button type="button" class="btn btn-sm btn-outline-secondary rich-command" data-command="justifyLeft">Left</button>
+<button type="button" class="btn btn-sm btn-outline-secondary rich-command" data-command="justifyCenter">Centre</button>
+<button type="button" class="btn btn-sm btn-outline-secondary rich-command" data-command="justifyRight">Right</button>
+<button type="button" class="btn btn-sm btn-outline-secondary rich-command" data-command="justifyFull">Justify</button>
+</div>
+<div class="row g-2 mb-2">
+<div class="col-4"><input type="color" id="selectionColor" class="form-control form-control-color w-100" title="Selected text colour"></div>
+<div class="col-8"><select id="selectionFont" class="form-select" title="Selected text font">
+<option value="">Selection font…</option>{% for font in fonts %}<option value="{{ font.name }}">{{ font.name }}</option>{% endfor %}
+</select></div>
+<div class="col-4"><select id="selectionSize" class="form-select" title="Selected text size">
+<option value="">Size…</option><option value="2">Small</option><option value="3">Normal</option><option value="4">Large</option><option value="5">Larger</option><option value="6">Very large</option>
+</select></div>
+<div class="col-8"><select id="insertWordingTag" class="form-select">
+<option value="">Insert tag…</option>
+<option value="salutation">Salutation</option><option value="teacher_name">Teacher name</option><option value="designation">Designation</option>
+<option value="subject">Subject</option><option value="school_name">School name</option>
+<option value="school_area">School area</option><option value="block">Block</option>
+<option value="registration_id">Registration ID</option><option value="date">Date</option>
+</select></div>
+</div>
+<div id="textContent" class="form-control text-start" contenteditable="true" role="textbox"
+aria-label="Certificate wording" style="min-height:120px;max-height:240px;overflow:auto"></div>
+<div class="form-text">Drag and resize the wording box on the certificate.</div>
+<div class="row g-2 mt-1">
+<div class="col-6">
+<label for="wordingWidth" class="form-label">Width</label>
+<input type="number" id="wordingWidth" class="form-control" min="100" max="1080" step="10">
+</div>
+<div class="col-6">
+<label for="wordingHeight" class="form-label">Height</label>
+<input type="number" id="wordingHeight" class="form-control" min="30" max="680" step="10">
+</div>
+</div>
+</div>
+
 <label>Font Size</label>
 <input type="number" id="fontSize" class="form-control" value="14" min="6" max="120">
 
@@ -220,6 +304,10 @@ Upload Font
 💾 Save Layout
 </button>
 
+<button id="hideSelectedField" class="btn btn-outline-danger w-100 mt-2" type="button">
+Hide Selected Field
+</button>
+
 <br><br>
 
 <a href="/admin" class="btn btn-secondary w-100">
@@ -235,6 +323,7 @@ Back
 <!-- ================= SCRIPTS ================= -->
 <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
 <script src="https://code.jquery.com/ui/1.13.2/jquery-ui.min.js"></script>
+<script src="{{ url_for('static', filename='js/security.js') }}"></script>
 
 <script>
 let templateId = $("#certificateCanvas").data("template");
@@ -262,9 +351,11 @@ function renderFields() {
 
     fieldsData.forEach(field => {
 
+        if (field.visible === false) return;
+
         let div = $(`
             <div class="draggable-field" id="${field.field_name}">
-                ${field.field_name.replaceAll("_", " ")}
+                ${displayFieldText(field)}
             </div>
         `);
 
@@ -307,6 +398,15 @@ function makeDraggable(element) {
     });
 
     element.resizable({
+        handles: "n,e,s,w,se,sw,ne,nw",
+        minWidth: 80,
+        minHeight: 30,
+        containment: "#certificateCanvas",
+        resize: function () {
+            if ($(this).attr("id") === "appreciation_text") {
+                syncWordingDimensions($(this));
+            }
+        },
         stop: function () {
             updateField($(this));
         }
@@ -329,6 +429,24 @@ function selectField(el) {
 
     ensureFontOption(fontFamily);
     $("#fontFamily").val(fontFamily);
+
+    let field = fieldsData.find(f => f.field_name === el.attr("id"));
+    let isWording = field && field.field_name === "appreciation_text";
+    $("#wordingProperty").toggleClass("d-none", !isWording);
+    $("#textContent").html(isWording ? (field.text_content || "") : "");
+    if (isWording) syncWordingDimensions(el);
+}
+
+function syncWordingDimensions(el) {
+    $("#wordingWidth").val(Math.round(el.width()));
+    $("#wordingHeight").val(Math.round(el.height()));
+}
+
+function displayFieldText(field) {
+    if (field.field_name === "appreciation_text") {
+        return `<div class="wording-content">${field.text_content || "Appreciation wording"}</div>`;
+    }
+    return field.field_name.replaceAll("_", " ");
 }
 
 // ================= UPDATE FIELD =================
@@ -362,13 +480,20 @@ $(".field-btn").click(function () {
     let fieldName = $(this).data("field");
     let existing = fieldsData.find(f => f.field_name === fieldName);
 
+    if (existing && existing.visible === false) {
+        existing.visible = true;
+        existing.x = 40;
+        existing.y = 40;
+        renderFields();
+    }
+
     if (!existing) {
         existing = {
             field_name: fieldName,
             x: 40,
             y: 40,
-            width: 120,
-            height: 28,
+            width: fieldName === "appreciation_text" ? 500 : 120,
+            height: fieldName === "appreciation_text" ? 80 : 28,
             font_size: defaultFontSize,
             font_family: defaultFontFamily,
             font_color: "#000000",
@@ -379,6 +504,11 @@ $(".field-btn").click(function () {
             visible: true
         };
 
+        if (fieldName === "appreciation_text") {
+            existing.text_content = "In appreciation of your valuable participation and contribution.";
+            existing.text_align = "center";
+        }
+
         fieldsData.push(existing);
         renderFields();
     }
@@ -386,7 +516,77 @@ $(".field-btn").click(function () {
     selectField($("#" + fieldName));
 });
 
+$("#hideSelectedField").click(function () {
+    if (!selectedField) {
+        alert("Select a certificate field first.");
+        return;
+    }
+
+    const field = fieldsData.find(item => item.field_name === selectedField.attr("id"));
+    if (!field) return;
+    field.visible = false;
+    selectedField.remove();
+    selectedField = null;
+    $("#wordingProperty").addClass("d-none");
+});
+
 // ================= PROPERTIES =================
+$("#textContent").on("input", function () {
+    if (!selectedField) return;
+    let field = fieldsData.find(f => f.field_name === selectedField.attr("id"));
+    if (!field || field.field_name !== "appreciation_text") return;
+    field.text_content = $(this).html();
+    selectedField.find(".wording-content").html(field.text_content || "Appreciation wording");
+});
+
+$(".rich-command").on("mousedown", function (event) {
+    event.preventDefault();
+    document.execCommand($(this).data("command"), false, null);
+    $("#textContent").trigger("input").focus();
+});
+
+$("#selectionColor").on("input", function () {
+    document.execCommand("foreColor", false, $(this).val());
+    $("#textContent").trigger("input").focus();
+});
+
+$("#selectionFont").on("change", function () {
+    if (!this.value) return;
+    document.execCommand("fontName", false, this.value);
+    $("#textContent").trigger("input").focus();
+    this.value = "";
+});
+
+$("#selectionSize").on("change", function () {
+    if (!this.value) return;
+    document.execCommand("fontSize", false, this.value);
+    $("#textContent").trigger("input").focus();
+    this.value = "";
+});
+
+$("#insertWordingTag").on("change", function () {
+    if (!this.value) return;
+    $("#textContent").focus();
+    const tagText = "{" + "{" + this.value + "}" + "}";
+    document.execCommand("insertText", false, tagText);
+    this.value = "";
+    $("#textContent").trigger("input");
+});
+
+$("#wordingWidth, #wordingHeight").on("input change", function () {
+    if (!selectedField || selectedField.attr("id") !== "appreciation_text") return;
+
+    const canvas = $("#certificateCanvas");
+    const maxWidth = Math.max(100, canvas.innerWidth() - selectedField.position().left);
+    const maxHeight = Math.max(30, canvas.innerHeight() - selectedField.position().top);
+    const width = Math.min(maxWidth, Math.max(100, Number($("#wordingWidth").val()) || 100));
+    const height = Math.min(maxHeight, Math.max(30, Number($("#wordingHeight").val()) || 30));
+
+    selectedField.width(width).height(height);
+    syncWordingDimensions(selectedField);
+    updateField(selectedField);
+});
+
 $("#fontSize").on("input", function () {
 
     if (!selectedField) return;

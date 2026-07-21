@@ -2,7 +2,7 @@ import os
 
 from flask import Blueprint, render_template, request, jsonify, redirect, url_for
 from werkzeug.utils import secure_filename
-from models import db, CertificateTemplate, CertificateLayout
+from models import db, CertificateTemplate, CertificateLayout, Participant
 
 layout_bp = Blueprint("layout", __name__)
 
@@ -11,6 +11,7 @@ STATIC_DIR = os.path.join(BASE_DIR, "static")
 FONT_DIR = os.path.join(STATIC_DIR, "fonts")
 ALLOWED_FONT_EXTENSIONS = {".ttf", ".otf", ".woff", ".woff2"}
 DEFAULT_PLACEHOLDER_FONT_SIZE = 14
+DEFAULT_APPRECIATION_TEXT = "In appreciation of your valuable participation and contribution."
 
 os.makedirs(FONT_DIR, exist_ok=True)
 
@@ -26,7 +27,8 @@ DEFAULT_FIELDS = [
     "block",
     "registration_id",
     "qr_code",
-    "date"
+    "date",
+    "appreciation_text",
 ]
 
 
@@ -134,14 +136,22 @@ def ensure_default_layout(template_id):
         ).first()
 
         if not exists:
+            is_appreciation = field_name == "appreciation_text"
             db.session.add(
                 CertificateLayout(
                     template_id=template_id,
                     field_name=field_name,
-                    width=120,
-                    height=28,
+                    width=500 if is_appreciation else 120,
+                    height=80 if is_appreciation else 28,
                     font_size=DEFAULT_PLACEHOLDER_FONT_SIZE,
-                    font_family="Noto Sans Tamil"
+                    font_family="Noto Sans Tamil",
+                    text_align="center" if is_appreciation else "left",
+                    text_content=(
+                        DEFAULT_APPRECIATION_TEXT
+                        if is_appreciation
+                        else None
+                    ),
+                    visible=is_appreciation
                 )
             )
         else:
@@ -156,6 +166,13 @@ def ensure_default_layout(template_id):
 
             if not exists.font_family:
                 exists.font_family = "Noto Sans Tamil"
+
+            if (
+                field_name not in {"appreciation_text", "teacher_photo", "qr_code"}
+                and exists.visible is not False
+                and float(exists.y or 0) <= 3
+            ):
+                exists.visible = False
 
     db.session.commit()
 
@@ -242,6 +259,7 @@ def get_layout(template_id):
             "id": f.id,
             "template_id": f.template_id,
             "field_name": f.field_name,
+            "text_content": f.text_content,
             "x": f.x,
             "y": f.y,
             "width": f.width,
@@ -335,7 +353,17 @@ def save_layout():
         field.shape = item.get("shape", "rectangle")
         field.rotation = item.get("rotation", 0)
         field.visible = item.get("visible", True)
+        field.text_content = item.get("text_content")
 
+    # A layout change makes every previously checked preview stale. Require the
+    # administrator to regenerate and approve certificates again.
+    Participant.query.filter(Participant.certificate_approved.is_(True)).update(
+        {
+            Participant.certificate_approved: False,
+            Participant.certificate_approved_at: None,
+        },
+        synchronize_session=False,
+    )
     db.session.commit()
 
     return jsonify({"success": True})

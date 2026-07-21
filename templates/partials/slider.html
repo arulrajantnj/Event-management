@@ -1,6 +1,5 @@
-{% set carousel_promotions = before_priority_promotions if before_priority_promotions is defined else after_priority_promotions %}
 {% if carousel_promotions %}
-<div id="promotionCarousel" class="carousel slide poster-carousel mt-4" data-bs-ride="carousel">
+<div id="{{ carousel_id }}" class="carousel slide poster-carousel mt-4" data-bs-ride="carousel">
 
     <div class="carousel-inner rounded shadow">
 
@@ -28,19 +27,21 @@
 
     <button class="carousel-control-prev"
             type="button"
-                data-bs-target="#promotionCarousel"
+            data-bs-target="#{{ carousel_id }}"
             data-bs-slide="prev">
 
-        <span class="carousel-control-prev-icon"></span>
+        <span class="carousel-control-prev-icon" aria-hidden="true"></span>
+        <span class="visually-hidden">Previous</span>
 
     </button>
 
     <button class="carousel-control-next"
             type="button"
-                data-bs-target="#promotionCarousel"
+            data-bs-target="#{{ carousel_id }}"
             data-bs-slide="next">
 
-        <span class="carousel-control-next-icon"></span>
+        <span class="carousel-control-next-icon" aria-hidden="true"></span>
+        <span class="visually-hidden">Next</span>
 
     </button>
 

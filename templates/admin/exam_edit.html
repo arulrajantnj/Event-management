@@ -58,6 +58,8 @@
                             <label class="form-label">Tab Switch Limit</label>
                             <input type="number" name="tab_switch_limit" class="form-control" value="{{ exam.tab_switch_limit }}" min="0">
                         </div>
+                        <div class="col-md-6"><label class="form-label">Questions per Attempt <small class="text-muted">(blank = all)</small></label><input type="number" name="question_count" class="form-control" value="{{ exam.question_count or '' }}" min="1"></div>
+                        <div class="col-md-6"><label class="form-label">Webcam Capture Interval (seconds)</label><input type="number" name="webcam_capture_interval" class="form-control" value="{{ exam.webcam_capture_interval }}" min="15"></div>
                     </div>
                     <div class="mt-3">
                         <label class="form-label">Instructions</label>
@@ -67,6 +69,9 @@
                         <input class="form-check-input" type="checkbox" name="auto_submit_on_violation" id="auto_submit_on_violation" {% if exam.auto_submit_on_violation %}checked{% endif %}>
                         <label class="form-check-label" for="auto_submit_on_violation">Auto submit after rule violation limit</label>
                     </div>
+                    <div class="form-check mt-2"><input class="form-check-input" type="checkbox" name="randomize_questions" id="randomize_questions" {% if exam.randomize_questions %}checked{% endif %}><label class="form-check-label" for="randomize_questions">Randomize question order for each attempt</label></div>
+                    <div class="form-check mt-2"><input class="form-check-input" type="checkbox" name="shuffle_options" id="shuffle_options" {% if exam.shuffle_options %}checked{% endif %}><label class="form-check-label" for="shuffle_options">Shuffle MCQ options for each attempt</label></div>
+                    <div class="form-check mt-2"><input class="form-check-input" type="checkbox" name="webcam_proctoring" id="webcam_proctoring" {% if exam.webcam_proctoring %}checked{% endif %}><label class="form-check-label" for="webcam_proctoring">Require webcam proctoring</label></div>
                     <div class="form-check mt-2">
                         <input class="form-check-input" type="checkbox" name="show_result_immediately" id="show_result_immediately" {% if exam.show_result_immediately %}checked{% endif %}>
                         <label class="form-check-label" for="show_result_immediately">Show result immediately</label>
@@ -90,13 +95,21 @@
         </div>
 
         <div class="card mb-4">
+            <div class="card-header bg-warning text-dark">Question Pools</div>
+            <div class="card-body">
+                <form method="POST" action="{{ url_for('admin.add_exam_question_pool', exam_id=exam.id) }}" class="row g-2 mb-3"><div class="col-md-5"><input name="name" class="form-control" placeholder="Pool name" required></div><div class="col-md-3"><input type="number" name="questions_to_draw" class="form-control" min="0" value="0" title="0 means all"></div><div class="col-md-2"><input type="number" name="sort_order" class="form-control" value="0"></div><div class="col-md-2"><input type="hidden" name="is_active" value="on"><button class="btn btn-warning w-100">Add</button></div></form>
+                {% for pool in exam.question_pools %}<div class="d-flex justify-content-between align-items-center border-top py-2"><span><strong>{{ pool.name }}</strong> · draw {{ pool.questions_to_draw or 'all' }} of {{ pool.questions|length }}</span><form method="POST" action="{{ url_for('admin.delete_exam_question_pool', pool_id=pool.id) }}"><button class="btn btn-sm btn-outline-danger" onclick="return confirm('Remove this pool? Questions will remain unpooled.')">Delete</button></form></div>{% else %}<div class="text-muted small">Create pools to draw a configured subset of questions per attempt.</div>{% endfor %}
+            </div>
+        </div>
+
+        <div class="card mb-4">
             <div class="card-header bg-info text-white">Import Questions from Excel</div>
             <div class="card-body">
                 <form method="POST" enctype="multipart/form-data" action="{{ url_for('admin.import_exam_questions', exam_id=exam.id) }}">
                     <div class="mb-3">
                         <label class="form-label">Excel File</label>
                         <input type="file" name="question_file" class="form-control" accept=".xlsx,.xls" required>
-                        <small class="text-muted">Columns: question_type, question_text, option_a, option_b, option_c, option_d, correct_option, model_answer, explanation, marks, sort_order</small>
+                        <small class="text-muted">Columns: pool, question_type, question_text, option_a, option_b, option_c, option_d, correct_option, model_answer, explanation, marks, sort_order</small>
                     </div>
                     <button class="btn btn-info text-white w-100">Import Questions</button>
                 </form>
@@ -115,6 +128,7 @@
                             {% endfor %}
                         </select>
                     </div>
+                    <div class="mb-3"><label class="form-label">Question Pool</label><select name="pool_id" class="form-select"><option value="">Unpooled</option>{% for pool in exam.question_pools %}<option value="{{ pool.id }}">{{ pool.name }}</option>{% endfor %}</select></div>
                     <div class="mb-3">
                         <label class="form-label">Question</label>
                         <textarea name="question_text" class="form-control" rows="3" required></textarea>
@@ -170,6 +184,7 @@
                             <tr>
                                 <th>#</th>
                                 <th>Type</th>
+                                <th>Pool</th>
                                 <th>Question</th>
                                 <th>Correct</th>
                                 <th>Marks</th>
@@ -181,6 +196,7 @@
                             <tr>
                                 <td>{{ loop.index }}</td>
                                 <td><span class="badge text-bg-light">{{ question.question_type|upper }}</span></td>
+                                <td>{{ question.pool.name if question.pool else '-' }}</td>
                                 <td>{{ question.question_text }}</td>
                                 <td>{{ question.correct_option or "-" }}</td>
                                 <td>{{ question.marks }}</td>
@@ -193,7 +209,7 @@
                             </tr>
                             {% else %}
                             <tr>
-                                <td colspan="6" class="text-center py-4 text-muted">No questions added yet.</td>
+                                <td colspan="7" class="text-center py-4 text-muted">No questions added yet.</td>
                             </tr>
                             {% endfor %}
                         </tbody>

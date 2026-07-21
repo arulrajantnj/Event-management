@@ -103,6 +103,9 @@ Download Certificate
                 Download Certificate
             </button>
         </form>
+        {% if not participant.certificate_approved %}
+        <div class="small text-warning mb-2"><i class="bi bi-clock"></i> Awaiting administrator approval.</div>
+        {% endif %}
         {% else %}
         <div class="alert alert-info mb-0">
             Certificate download is not enabled for this event.

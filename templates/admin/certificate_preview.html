@@ -1,0 +1,29 @@
+{% extends "admin/admin_base.html" %}
+{% block title %}Certificate Preview{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <div><h2 class="mb-1">Certificate Preview</h2><div class="text-muted">{{ participant.salutation }} {{ participant.teacher_name }} · {{ participant.reg_id }}</div></div>
+    <a class="btn btn-outline-secondary" href="{{ url_for('admin.admin') }}">Back to Participants</a>
+</div>
+{% if request.args.get('saved') %}<div class="alert alert-success">Certificate approval status saved.</div>{% endif %}
+{% if generation_error %}
+<div class="alert alert-danger">Preview could not be generated: {{ generation_error }}</div>
+{% else %}
+<div class="card mb-3"><div class="card-body bg-dark text-center overflow-auto">
+    <img src="{{ preview_url }}" class="img-fluid" alt="Generated certificate preview" style="max-height:72vh">
+</div></div>
+{% endif %}
+<div class="card"><div class="card-body">
+<form method="POST" class="d-flex flex-wrap gap-3 align-items-center">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="form-check form-switch fs-5">
+        <input class="form-check-input" type="checkbox" name="certificate_approved" id="certificateApproved" {% if participant.certificate_approved %}checked{% endif %}>
+        <label class="form-check-label" for="certificateApproved">I checked this preview and approve the certificate</label>
+    </div>
+    <button class="btn btn-success">Save check mark</button>
+    <a class="btn btn-warning" href="{{ url_for('layout.layout_editor_default') }}">Edit certificate layout</a>
+    <a class="btn btn-outline-primary" href="{{ url_for('admin.certificate_preview', id=participant.id) }}">Regenerate preview</a>
+</form>
+<p class="small text-muted mb-0 mt-3">If the preview is wrong, edit and save the layout, return here, then regenerate and approve it.</p>
+</div></div>
+{% endblock %}

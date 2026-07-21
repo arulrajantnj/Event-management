@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, request, redirect, session, send_file, url_for
+from flask import Blueprint, render_template, request, redirect, session, send_file, url_for, current_app
 from models import (
     db,
     Event,
@@ -7,6 +7,8 @@ from models import (
     ExamAnswer,
     ExamAttempt,
     ExamQuestion,
+    ExamQuestionPool,
+    ExamProctoringSnapshot,
     ExamSubject,
     OnlineExam,
     Participant,
@@ -30,6 +32,7 @@ from werkzeug.utils import secure_filename
 from werkzeug.security import generate_password_hash
 from attendance_service import mark_attendance as service_mark_attendance
 from routes import generate_participant_code, registration_id_for_event
+from certificate_generator import generate_certificate
 
 
 admin_bp = Blueprint("admin", __name__)
@@ -399,6 +402,11 @@ def online_exam_payload_from_form():
         "tab_switch_limit": request.form.get("tab_switch_limit", 3, type=int) or 3,
         "auto_submit_on_violation": checkbox_value("auto_submit_on_violation"),
         "show_result_immediately": checkbox_value("show_result_immediately"),
+        "randomize_questions": checkbox_value("randomize_questions"),
+        "shuffle_options": checkbox_value("shuffle_options"),
+        "question_count": request.form.get("question_count", type=int),
+        "webcam_proctoring": checkbox_value("webcam_proctoring"),
+        "webcam_capture_interval": max(15, request.form.get("webcam_capture_interval", 60, type=int) or 60),
         "public_results_published": checkbox_value("public_results_published"),
         "is_active": checkbox_value("is_active"),
     }
@@ -406,6 +414,7 @@ def online_exam_payload_from_form():
 
 def exam_question_payload_from_form():
     return {
+        "pool_id": request.form.get("pool_id", type=int),
         "question_type": request.form.get("question_type", "mcq").strip() or "mcq",
         "question_text": request.form.get("question_text", "").strip(),
         "option_a": request.form.get("option_a", "").strip(),
@@ -676,6 +685,57 @@ def admin():
 
 
 COMPETITION_RANK_OPTIONS = ["Winner", "Runner", "1st Place", "2nd Place", "3rd Place", "Participant Certificate"]
+
+
+@admin_bp.route("/admin/participants/<int:id>/certificate-preview", methods=["GET", "POST"])
+def certificate_preview(id):
+    if "admin" not in session:
+        return redirect(url_for("routes.login"))
+
+    participant = Participant.query.get_or_404(id)
+    if request.method == "POST":
+        participant.certificate_approved = request.form.get("certificate_approved") == "on"
+        participant.certificate_approved_at = datetime.utcnow() if participant.certificate_approved else None
+        db.session.commit()
+        return redirect(url_for("admin.certificate_preview", id=participant.id, saved=1))
+
+    result = generate_certificate(participant)
+    preview_url = None
+    if result.get("success"):
+        preview_url = url_for("static", filename=f"generated_certificates/{participant.reg_id}.png", v=int(datetime.utcnow().timestamp()))
+
+    return render_template(
+        "admin/certificate_preview.html",
+        participant=participant,
+        preview_url=preview_url,
+        generation_error=None if result.get("success") else result.get("error", "Certificate preview failed"),
+    )
+
+
+@admin_bp.route("/admin/participants/<int:id>/certificate-approval", methods=["POST"])
+def certificate_approval(id):
+    if "admin" not in session:
+        return redirect(url_for("routes.login"))
+
+    participant = Participant.query.get_or_404(id)
+    approve = request.form.get("action") == "approve"
+    if approve:
+        result = generate_certificate(participant)
+        if not result.get("success"):
+            return redirect(url_for("admin.certificate_preview", id=participant.id, error="generation_failed"))
+        participant.certificate_approved = True
+        participant.certificate_approved_at = datetime.utcnow()
+    else:
+        participant.certificate_approved = False
+        participant.certificate_approved_at = None
+    db.session.commit()
+
+    return redirect(url_for(
+        "admin.admin",
+        page=request.form.get("page", 1),
+        search=request.form.get("search", ""),
+        event_id=request.form.get("event_id", ""),
+    ))
 
 
 def competition_admin_redirect(competition_id=None, **params):
@@ -1578,7 +1638,7 @@ def edit_online_exam(exam_id):
 
     attempts = ExamAttempt.query.filter_by(
         exam_id=exam.id
-    ).order_by(ExamAttempt.submitted_at.desc()).all()
+    ).order_by(ExamAttempt.started_at.desc()).all()
 
     return render_template(
         "admin/exam_edit.html",
@@ -1612,6 +1672,8 @@ def add_exam_question(exam_id):
 
     exam = OnlineExam.query.get_or_404(exam_id)
     payload = exam_question_payload_from_form()
+    if payload["pool_id"] and not ExamQuestionPool.query.filter_by(id=payload["pool_id"], exam_id=exam.id).first():
+        payload["pool_id"] = None
 
     is_descriptive = payload["question_type"] == "descriptive"
     options_ready = (
@@ -1638,6 +1700,8 @@ def edit_exam_question(question_id):
 
     if request.method == "POST":
         payload = exam_question_payload_from_form()
+        if payload["pool_id"] and not ExamQuestionPool.query.filter_by(id=payload["pool_id"], exam_id=question.exam_id).first():
+            payload["pool_id"] = None
         is_descriptive = payload["question_type"] == "descriptive"
         options_ready = (
             payload["option_a"] and
@@ -1654,9 +1718,41 @@ def edit_exam_question(question_id):
     return render_template(
         "admin/exam_question_edit.html",
         question=question,
+        question_pools=question.exam.question_pools,
         answer_option_choices=ANSWER_OPTION_CHOICES,
         question_type_choices=QUESTION_TYPE_CHOICES
     )
+
+
+@admin_bp.route("/admin/exams/<int:exam_id>/question-pools", methods=["POST"])
+def add_exam_question_pool(exam_id):
+    if "admin" not in session:
+        return redirect(url_for("routes.login"))
+    exam = OnlineExam.query.get_or_404(exam_id)
+    name = request.form.get("name", "").strip()
+    if name and not ExamQuestionPool.query.filter_by(exam_id=exam.id, name=name).first():
+        db.session.add(ExamQuestionPool(
+            exam_id=exam.id,
+            name=name,
+            questions_to_draw=max(0, request.form.get("questions_to_draw", 0, type=int) or 0),
+            sort_order=request.form.get("sort_order", 0, type=int) or 0,
+            is_active=checkbox_value("is_active"),
+        ))
+        db.session.commit()
+    return redirect(url_for("admin.edit_online_exam", exam_id=exam.id))
+
+
+@admin_bp.route("/admin/question-pools/<int:pool_id>/delete", methods=["POST"])
+def delete_exam_question_pool(pool_id):
+    if "admin" not in session:
+        return redirect(url_for("routes.login"))
+    pool = ExamQuestionPool.query.get_or_404(pool_id)
+    exam_id = pool.exam_id
+    for question in pool.questions:
+        question.pool_id = None
+    db.session.delete(pool)
+    db.session.commit()
+    return redirect(url_for("admin.edit_online_exam", exam_id=exam_id))
 
 
 @admin_bp.route("/admin/questions/<int:question_id>/delete", methods=["POST"])
@@ -1682,13 +1778,25 @@ def exam_results(exam_id):
     exam = OnlineExam.query.get_or_404(exam_id)
     attempts = ExamAttempt.query.filter_by(
         exam_id=exam.id
-    ).order_by(ExamAttempt.submitted_at.desc()).all()
+    ).filter(ExamAttempt.status != "in_progress").order_by(ExamAttempt.submitted_at.desc()).all()
 
     return render_template(
         "admin/exam_results.html",
         exam=exam,
         attempts=attempts
     )
+
+
+@admin_bp.route("/admin/exam-attempts/<int:attempt_id>/proctoring/<int:snapshot_id>")
+def exam_proctoring_snapshot(attempt_id, snapshot_id):
+    if "admin" not in session:
+        return redirect(url_for("routes.login"))
+    snapshot = ExamProctoringSnapshot.query.filter_by(id=snapshot_id, attempt_id=attempt_id).first_or_404()
+    absolute_path = os.path.abspath(os.path.join(current_app.instance_path, snapshot.file_path))
+    instance_path = os.path.abspath(current_app.instance_path)
+    if os.path.commonpath([absolute_path, instance_path]) != instance_path or not os.path.isfile(absolute_path):
+        return "Snapshot not found", 404
+    return send_file(absolute_path, mimetype="image/jpeg")
 
 
 @admin_bp.route("/admin/exams/<int:exam_id>/manual-score", methods=["POST"])
@@ -1726,7 +1834,7 @@ def export_exam_results(exam_id):
     exam = OnlineExam.query.get_or_404(exam_id)
     attempts = ExamAttempt.query.filter_by(
         exam_id=exam.id
-    ).order_by(ExamAttempt.score.desc(), ExamAttempt.submitted_at.asc()).all()
+    ).filter(ExamAttempt.status != "in_progress").order_by(ExamAttempt.score.desc(), ExamAttempt.submitted_at.asc()).all()
 
     rows = []
     for index, attempt in enumerate(attempts, start=1):
@@ -1761,7 +1869,7 @@ def exam_rank_list(exam_id):
     exam = OnlineExam.query.get_or_404(exam_id)
     attempts = ExamAttempt.query.filter_by(
         exam_id=exam.id
-    ).order_by(ExamAttempt.score.desc(), ExamAttempt.submitted_at.asc()).all()
+    ).filter(ExamAttempt.status != "in_progress").order_by(ExamAttempt.score.desc(), ExamAttempt.submitted_at.asc()).all()
 
     top_attempts = attempts[:10]
     return render_template(
@@ -1789,9 +1897,19 @@ def import_exam_questions(exam_id):
             if not question_text:
                 continue
 
+            pool = None
+            pool_name = str(row.get("pool", row.get("pool_name", ""))).strip()
+            if pool_name:
+                pool = ExamQuestionPool.query.filter_by(exam_id=exam.id, name=pool_name).first()
+                if not pool:
+                    pool = ExamQuestionPool(exam_id=exam.id, name=pool_name, is_active=True)
+                    db.session.add(pool)
+                    db.session.flush()
+
             db.session.add(
                 ExamQuestion(
                     exam_id=exam.id,
+                    pool_id=pool.id if pool else None,
                     question_type=question_type,
                     question_text=question_text,
                     option_a=str(row.get("option_a", "")).strip(),
@@ -1921,7 +2039,7 @@ def toggle_event_photo_rule(id):
 # =====================================================
 # DELETE PARTICIPANT
 # =====================================================
-@admin_bp.route("/delete/<int:id>")
+@admin_bp.route("/delete/<int:id>", methods=["POST"])
 def delete_participant(id):
 
     if not session.get("admin"):

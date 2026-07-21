@@ -17,6 +17,7 @@
                             {% endfor %}
                         </select>
                     </div>
+                    <div class="mb-3"><label class="form-label">Question Pool</label><select name="pool_id" class="form-select"><option value="">Unpooled</option>{% for pool in question_pools %}<option value="{{ pool.id }}" {% if question.pool_id == pool.id %}selected{% endif %}>{{ pool.name }}</option>{% endfor %}</select></div>
                     <div class="mb-3">
                         <label class="form-label">Question</label>
                         <textarea name="question_text" class="form-control" rows="3" required>{{ question.question_text }}</textarea>

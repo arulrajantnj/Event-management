@@ -15,13 +15,16 @@
     <div class="row g-4">
         {% for exam in exams %}
         {% set attempt = attempts.get(exam.id) %}
+        {% set in_progress = in_progress_attempts.get(exam.id) %}
         {% set exam_status = exam_status_map.get(exam.id) %}
         <div class="col-lg-4 col-md-6">
             <div class="card h-100 shadow-sm border-0 rounded-4">
                 <div class="card-body">
                     <div class="d-flex justify-content-between align-items-start gap-2 mb-3">
                         <span class="badge bg-info">{{ exam.subject.subject_name if exam.subject else "Subject" }}</span>
-                        {% if attempt %}
+                        {% if in_progress %}
+                        <span class="badge bg-primary">In Progress</span>
+                        {% elif attempt %}
                         <span class="badge bg-success">Attempted</span>
                         {% else %}
                         <span class="badge bg-warning text-dark">New</span>
@@ -45,7 +48,13 @@
                         <span class="badge bg-success">Open Now</span>
                         {% endif %}
                     </div>
-                    {% if attempt %}
+                    {% if in_progress %}
+                    <p class="mb-3">Started {{ in_progress.started_at.strftime('%d-%m-%Y %H:%M') }}. Saved answers will be restored.</p>
+                    <div class="d-grid gap-2">
+                        {% if exam_status == "open" %}<a href="{{ url_for('routes.take_exam', exam_id=exam.id) }}" class="btn btn-primary">Resume Exam</a>{% else %}<button class="btn btn-secondary" disabled>Exam Closed</button>{% endif %}
+                        <a href="{{ url_for('routes.hall_ticket', exam_id=exam.id) }}" class="btn btn-outline-dark">Hall Ticket</a>
+                    </div>
+                    {% elif attempt %}
                     <p class="mb-3">Latest Score: {{ attempt.score }} / {{ attempt.total_marks }}</p>
                     <div class="d-grid gap-2">
                         <a href="{{ url_for('routes.exam_result', attempt_id=attempt.id) }}" class="btn btn-outline-primary">View Result</a>

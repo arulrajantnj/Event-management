@@ -371,6 +371,7 @@ Event Registration
 {% endif %}
 
 <form method="POST" enctype="multipart/form-data">
+{% if editing_preview %}<input type="hidden" name="editing_preview" value="1">{% endif %}
 
 <div class="section-title">
 <i class="fa-solid fa-calendar-check"></i>
@@ -453,7 +454,7 @@ Photo Upload
 <div class="row align-items-start g-4">
     <div class="col-md-4 text-center">
         <img
-        src="https://via.placeholder.com/180x210?text=Passport+Photo"
+        src="{{ url_for('static', filename='uploads/' + existing_photo) if existing_photo else 'https://via.placeholder.com/180x210?text=Passport+Photo' }}"
         id="preview"
         class="photo-preview">
 
@@ -464,7 +465,7 @@ Photo Upload
             id="photo"
             class="form-control"
             accept=".jpg,.jpeg,.png"
-            {% if field_state.get("requires_photo") %}required{% endif %}>
+            {% if field_state.get("requires_photo") and not existing_photo %}required{% endif %}>
         </div>
 
         <small class="text-muted d-block mt-2">

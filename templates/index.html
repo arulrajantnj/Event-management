@@ -8,7 +8,11 @@ Vandurai Events
 
 {% set before_priority_promotions = promotions|selectattr('show_before_priority')|list %}
 {% set after_priority_promotions = promotions|rejectattr('show_before_priority')|list %}
-{% if before_priority_promotions %}{% include "partials/slider.html" %}{% endif %}
+{% if before_priority_promotions %}
+    {% set carousel_promotions = before_priority_promotions %}
+    {% set carousel_id = 'promotionCarouselBefore' %}
+    {% include "partials/slider.html" %}
+{% endif %}
 
 {% include "partials/hero.html" %}
 
@@ -16,7 +20,11 @@ Vandurai Events
 
 {% include "partials/latest_events.html" %}
 
-{% if after_priority_promotions %}{% include "partials/slider.html" %}{% endif %}
+{% if after_priority_promotions %}
+    {% set carousel_promotions = after_priority_promotions %}
+    {% set carousel_id = 'promotionCarouselAfter' %}
+    {% include "partials/slider.html" %}
+{% endif %}
 
 {% include "partials/statistics.html" %}
 

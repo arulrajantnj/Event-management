@@ -489,7 +489,7 @@ Share QR Code
 
 <div class="text-center mt-4">
 
-{% if registration_complete and participant.event and participant.event.certificate_enabled %}
+{% if registration_complete and participant.event and participant.event.certificate_enabled and participant.certificate_approved %}
 <a
 href="/certificate/{{ participant.id }}"
 class="btn btn-success">
@@ -498,6 +498,10 @@ class="btn btn-success">
 Download Certificate
 
 </a>
+{% elif registration_complete and participant.event and participant.event.certificate_enabled %}
+<span class="btn btn-outline-secondary disabled">
+<i class="fa-solid fa-clock"></i> Certificate awaiting admin approval
+</span>
 {% endif %}
 
 {% if registration_complete and whatsapp_link %}

@@ -153,6 +153,19 @@
                             <label class="form-label">Tab Switch Limit</label>
                             <input type="number" name="tab_switch_limit" class="form-control" value="3" min="0">
                         </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Questions per Attempt <small class="text-muted">(blank = all)</small></label>
+                            <input type="number" name="question_count" class="form-control" min="1">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Webcam Capture Interval (seconds)</label>
+                            <input type="number" name="webcam_capture_interval" class="form-control" value="60" min="15">
+                        </div>
+                        <div class="col-md-6 d-flex align-items-end gap-3 flex-wrap">
+                            <div class="form-check"><input class="form-check-input" type="checkbox" name="randomize_questions" id="randomize_questions_create"><label class="form-check-label" for="randomize_questions_create">Randomize questions</label></div>
+                            <div class="form-check"><input class="form-check-input" type="checkbox" name="shuffle_options" id="shuffle_options_create"><label class="form-check-label" for="shuffle_options_create">Shuffle options</label></div>
+                            <div class="form-check"><input class="form-check-input" type="checkbox" name="webcam_proctoring" id="webcam_proctoring_create"><label class="form-check-label" for="webcam_proctoring_create">Webcam proctoring</label></div>
+                        </div>
                         <div class="col-md-6 d-flex align-items-end">
                             <div class="form-check me-3">
                                 <input class="form-check-input" type="checkbox" name="auto_submit_on_violation" id="auto_submit_on_violation_create" checked>

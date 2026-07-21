@@ -30,6 +30,7 @@
                             <th>Score</th>
                             <th>Status</th>
                             <th>Violations</th>
+                            <th>Proctoring</th>
                             <th>Descriptive Marks</th>
                             <th>Submitted</th>
                         </tr>
@@ -44,6 +45,11 @@
                             <td>{{ attempt.score }} / {{ attempt.total_marks }}</td>
                             <td>{{ attempt.evaluation_status }}</td>
                             <td>{{ attempt.violation_count }}</td>
+                            <td style="min-width:180px;">
+                                {% if attempt.proctoring_snapshots %}
+                                <div class="d-flex flex-wrap gap-1">{% for snapshot in attempt.proctoring_snapshots[:4] %}<a href="{{ url_for('admin.exam_proctoring_snapshot', attempt_id=attempt.id, snapshot_id=snapshot.id) }}" target="_blank"><img src="{{ url_for('admin.exam_proctoring_snapshot', attempt_id=attempt.id, snapshot_id=snapshot.id) }}" alt="Proctoring capture" width="54" height="40" style="object-fit:cover" class="rounded border"></a>{% endfor %}</div><div class="small text-muted">{{ attempt.proctoring_snapshots|length }} capture(s)</div>
+                                {% elif attempt.exam.webcam_proctoring %}<span class="badge bg-danger">No captures</span>{% else %}-{% endif %}
+                            </td>
                             <td style="min-width:300px;">
                                 {% for answer in attempt.answers %}
                                 {% if answer.question and answer.question.question_type == 'descriptive' %}
@@ -62,7 +68,7 @@
                         </tr>
                         {% else %}
                         <tr>
-                            <td colspan="6" class="text-center py-4 text-muted">No results available yet.</td>
+                            <td colspan="7" class="text-center py-4 text-muted">No results available yet.</td>
                         </tr>
                         {% endfor %}
                     </tbody>
