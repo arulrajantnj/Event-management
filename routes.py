@@ -1577,6 +1577,11 @@ def download_certificate(reg_id):
     if not os.path.exists(filepath):
         return "Certificate not found"
 
+    if participant:
+        participant.download_count = (participant.download_count or 0) + 1
+        participant.last_download = datetime.utcnow()
+        db.session.commit()
+
     return send_file(filepath, as_attachment=True)
 
 

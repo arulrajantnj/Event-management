@@ -495,6 +495,8 @@ PARTICIPANT TABLE
 
 <th>Additional Details</th>
 
+<th>Certificate Download</th>
+
 <th width="260">
 
 Actions
@@ -650,6 +652,20 @@ No Photo
 
 </td>
 
+<td>
+{% if p.download_count %}
+<span class="badge bg-success"><i class="fa-solid fa-circle-check"></i> Downloaded</span>
+<br>
+<small class="text-muted">{{ p.download_count }} time{{ '' if p.download_count == 1 else 's' }}</small>
+{% if p.last_download %}
+<br>
+<small class="text-muted">Last: {{ p.last_download.strftime('%d %b %Y %I:%M %p') }}</small>
+{% endif %}
+{% else %}
+<span class="badge bg-secondary"><i class="fa-solid fa-clock"></i> Not downloaded</span>
+{% endif %}
+</td>
+
 
 <!-- ================= ACTION BUTTONS ================= -->
 
@@ -701,7 +717,7 @@ Delete
 
 <tr>
 
-<td colspan="9" class="text-center py-5">
+<td colspan="10" class="text-center py-5">
 
 <i class="fa-solid fa-circle-info fa-3x text-secondary mb-3"></i>
 
