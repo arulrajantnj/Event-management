@@ -9,7 +9,7 @@ layout_bp = Blueprint("layout", __name__)
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 STATIC_DIR = os.path.join(BASE_DIR, "static")
 FONT_DIR = os.path.join(STATIC_DIR, "fonts")
-ALLOWED_FONT_EXTENSIONS = {".ttf", ".otf", ".woff", ".woff2"}
+ALLOWED_FONT_EXTENSIONS = {".ttf", ".otf", ".ttc"}
 DEFAULT_PLACEHOLDER_FONT_SIZE = 14
 DEFAULT_APPRECIATION_TEXT = "In appreciation of your valuable participation and contribution."
 
@@ -302,7 +302,7 @@ def upload_font():
     if ext.lower() not in ALLOWED_FONT_EXTENSIONS:
         return jsonify({
             "success": False,
-            "error": "Upload a .ttf, .otf, .woff, or .woff2 font file"
+            "error": "Upload a .ttf, .otf, or .ttc font file"
         }), 400
 
     file.save(os.path.join(FONT_DIR, filename))

@@ -104,6 +104,8 @@ FONT_FILE_ALIASES = {
     "noto sans tamil": "NotoSansTamil-VariableFont_wdth,wght.ttf",
 }
 
+SUPPORTED_FONT_EXTENSIONS = {".ttf", ".otf", ".ttc"}
+
 os.makedirs(CERT_FOLDER, exist_ok=True)
 os.makedirs(QR_FOLDER, exist_ok=True)
 
@@ -211,6 +213,17 @@ def font_path_by_family(font_family):
             candidates.append(
                 os.path.join(folder, family_name.replace(" ", "_") + ext)
             )
+
+    normalized_family = re.sub(r"[^a-z0-9]", "", family_key)
+    for folder in (STATIC_FONT_FOLDER, LEGACY_FONT_FOLDER, SYSTEM_FONT_FOLDER):
+        if not os.path.isdir(folder):
+            continue
+        for filename in os.listdir(folder):
+            name, extension = os.path.splitext(filename)
+            if extension.lower() not in SUPPORTED_FONT_EXTENSIONS:
+                continue
+            if re.sub(r"[^a-z0-9]", "", name.lower()) == normalized_family:
+                return os.path.join(folder, filename)
 
     for path in candidates:
         if os.path.exists(path):
