@@ -128,22 +128,30 @@
             </a>
         </li>
 
-        <li class="nav-item">
-            <a class="nav-link competition-link" href="/competition-register">
-                <i class="bi bi-palette-fill"></i> Competitions
-            </a>
-        </li>
-
-        <li class="nav-item">
-            <a class="nav-link competition-link" href="/chess">
-                <i class="bi bi-grid-3x3-gap-fill"></i> Chess
-            </a>
-        </li>
-
-        <li class="nav-item">
-            <a class="nav-link exam-link" href="/exam-login">
-                <i class="bi bi-journal-check"></i> Online Exam
-            </a>
+        <li class="nav-item dropdown">
+            <button class="nav-link competition-link dropdown-toggle"
+                    type="button"
+                    data-bs-toggle="dropdown"
+                    aria-expanded="false">
+                <i class="bi bi-calendar-event-fill"></i> Events
+            </button>
+            <ul class="dropdown-menu events-dropdown">
+                <li>
+                    <a class="dropdown-item" href="/competition-register">
+                        <i class="bi bi-palette-fill"></i> Competitions
+                    </a>
+                </li>
+                <li>
+                    <a class="dropdown-item" href="/chess">
+                        <i class="bi bi-grid-3x3-gap-fill"></i> Chess
+                    </a>
+                </li>
+                <li>
+                    <a class="dropdown-item" href="/exam-login">
+                        <i class="bi bi-journal-check"></i> Online Exam
+                    </a>
+                </li>
+            </ul>
         </li>
 
         <li class="nav-item">

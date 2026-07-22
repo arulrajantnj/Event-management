@@ -1793,6 +1793,24 @@ section{
     margin-bottom:16px;
 }
 
+.event-gallery-carousel{
+    max-width:980px;
+    margin:24px auto 0;
+    border-radius:16px;
+    overflow:hidden;
+    box-shadow:0 12px 30px rgba(15,23,42,.16);
+}
+
+.event-gallery-carousel .carousel-item{
+    aspect-ratio:16 / 7;
+    background:#0f172a;
+}
+
+.event-gallery-carousel .carousel-item img{
+    height:100%;
+    object-fit:contain;
+}
+
 .table-responsive{
     -webkit-overflow-scrolling:touch;
 }
@@ -2468,6 +2486,28 @@ button{
 
 .modern-navbar .admin-link{
     background:#fcecff;
+}
+
+.modern-navbar .events-dropdown{
+    min-width:220px;
+    padding:8px;
+    border:2px solid #0f766e;
+    border-radius:14px;
+    box-shadow:0 12px 24px rgba(15,23,42,.16);
+}
+
+.modern-navbar .events-dropdown .dropdown-item{
+    padding:10px 12px;
+    border-radius:9px;
+    color:#0f766e;
+    font-size:16px;
+    font-weight:700;
+}
+
+.modern-navbar .events-dropdown .dropdown-item:hover,
+.modern-navbar .events-dropdown .dropdown-item:focus{
+    background:#e6fffb;
+    color:#0f766e;
 }
 
 /* Keep the complete public menu inside its header on laptop and desktop widths. */

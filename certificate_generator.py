@@ -275,6 +275,29 @@ def paste_box_image(canvas, image, field):
     canvas.paste(fitted, (x, y), fitted)
 
 
+def draw_photo_border(canvas, field, color="#b98a2f", border_width=3):
+    width = max(1, int(field.width or 100))
+    height = max(1, int(field.height or 120))
+    x = int(field.x or 0)
+    y = int(field.y or 0)
+    shape = (field.shape or "rectangle").lower()
+    inset = min(border_width // 2, max(0, min(width, height) // 2))
+    bounds = (inset, inset, width - 1 - inset, height - 1 - inset)
+
+    overlay = Image.new("RGBA", (width, height), (255, 255, 255, 0))
+    draw = ImageDraw.Draw(overlay)
+
+    if shape == "circle":
+        draw.ellipse(bounds, outline=color, width=border_width)
+    elif shape == "rounded":
+        radius = max(8, min(width, height) // 6)
+        draw.rounded_rectangle(bounds, radius=radius, outline=color, width=border_width)
+    else:
+        draw.rectangle(bounds, outline=color, width=border_width)
+
+    canvas.paste(overlay, (x, y), overlay)
+
+
 def draw_photo_placeholder(canvas, field):
     width = max(1, int(field.width or 100))
     height = max(1, int(field.height or 120))
@@ -626,6 +649,7 @@ def render_layout(canvas, participant, fields):
             teacher_image = load_teacher_photo(participant.photo)
             if teacher_image:
                 paste_box_image(canvas, teacher_image, teacher_photo_field)
+                draw_photo_border(canvas, teacher_photo_field)
             else:
                 draw_photo_placeholder(canvas, teacher_photo_field)
         else:
@@ -678,7 +702,15 @@ def render_fallback(canvas, participant):
         teacher_img = load_teacher_photo(participant.photo)
         if teacher_img:
             teacher_img = ImageOps.contain(teacher_img, (220, 260))
-            canvas.paste(teacher_img, (int(width * 0.08), int(height * 0.18)))
+            photo_x = int(width * 0.08)
+            photo_y = int(height * 0.18)
+            canvas.paste(teacher_img, (photo_x, photo_y))
+            draw = ImageDraw.Draw(canvas)
+            draw.rectangle(
+                (photo_x, photo_y, photo_x + teacher_img.width - 1, photo_y + teacher_img.height - 1),
+                outline="#b98a2f",
+                width=3,
+            )
 
     qr_img, qr_file = generate_qr(participant.reg_id)
     qr_img = ImageOps.contain(qr_img, (180, 180))
