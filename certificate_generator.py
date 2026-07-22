@@ -98,10 +98,10 @@ FONT_FILE_ALIASES = {
     "times new roman": "times.ttf",
     "verdana": "verdana.ttf",
     "georgia": "georgia.ttf",
-    "latha": "Nirmala.ttc",
-    "vijaya": "Nirmala.ttc",
-    "nirmala ui": "Nirmala.ttc",
-    "noto sans tamil": "Nirmala.ttc",
+    "latha": "NotoSansTamil-VariableFont_wdth,wght.ttf",
+    "vijaya": "NotoSansTamil-VariableFont_wdth,wght.ttf",
+    "nirmala ui": "NotoSansTamil-VariableFont_wdth,wght.ttf",
+    "noto sans tamil": "NotoSansTamil-VariableFont_wdth,wght.ttf",
 }
 
 os.makedirs(CERT_FOLDER, exist_ok=True)
