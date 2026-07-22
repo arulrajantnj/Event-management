@@ -485,6 +485,14 @@ class Participant(db.Model):
     attendance_logs = db.relationship(
         "AttendanceLog",
         back_populates="participant",
+        cascade="all, delete-orphan",
+        lazy=True
+    )
+
+    exam_attempts = db.relationship(
+        "ExamAttempt",
+        back_populates="participant",
+        cascade="all, delete-orphan",
         lazy=True
     )
 
@@ -1311,6 +1319,7 @@ class ExamAttempt(db.Model):
 
     participant = db.relationship(
         "Participant",
+        back_populates="exam_attempts",
         lazy=True
     )
 

@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, request, redirect, session, send_file, url_for, current_app
+from flask import Blueprint, jsonify, render_template, request, redirect, session, send_file, url_for, current_app
 from models import (
     db,
     Event,
@@ -28,6 +28,7 @@ import pandas as pd
 import re
 import uuid
 import random
+import logging
 from werkzeug.utils import secure_filename
 from werkzeug.security import generate_password_hash
 from attendance_service import mark_attendance as service_mark_attendance
@@ -36,6 +37,7 @@ from certificate_generator import generate_certificate
 
 
 admin_bp = Blueprint("admin", __name__)
+logger = logging.getLogger(__name__)
 
 REGISTRATION_TYPE_CHOICES = [
     ("teacher", "Teachers"),
@@ -680,6 +682,7 @@ def admin():
         search=search,
         total=total,
         events=events,
+        completed_events=[event for event in events if not event.is_active],
         selected_event_id=selected_event_id
     )
 
@@ -2039,6 +2042,160 @@ def toggle_event_photo_rule(id):
 # =====================================================
 # DELETE PARTICIPANT
 # =====================================================
+def delete_participant_photo(participant):
+    photo = (participant.photo or "").strip()
+    if not photo:
+        return
+
+    storage = current_app.config.get("PARTICIPANT_PHOTO_STORAGE", "local").lower()
+    if storage == "s3" or photo.startswith("s3://"):
+        try:
+            import boto3
+        except ImportError as error:
+            raise RuntimeError("S3 photo deletion requires boto3.") from error
+
+        bucket = current_app.config.get("AWS_S3_BUCKET", "").strip()
+        key = photo
+        if photo.startswith("s3://"):
+            bucket_and_key = photo[5:].split("/", 1)
+            bucket = bucket_and_key[0]
+            key = bucket_and_key[1] if len(bucket_and_key) > 1 else ""
+
+        if not bucket or not key:
+            raise RuntimeError("S3 photo storage is missing a bucket or object key.")
+
+        try:
+            boto3.client(
+                "s3",
+                region_name=current_app.config.get("AWS_S3_REGION") or None,
+            ).delete_object(Bucket=bucket, Key=key)
+        except Exception as error:
+            logger.exception("Unable to delete participant photo from S3: %s", photo)
+            raise RuntimeError("Unable to delete the participant photo from S3.") from error
+        return
+
+    filename = os.path.basename(photo)
+    filepath = os.path.join(current_app.root_path, "static", "uploads", filename)
+    if os.path.exists(filepath):
+        try:
+            os.remove(filepath)
+        except OSError as error:
+            logger.exception("Unable to delete participant photo from local storage: %s", filepath)
+            raise RuntimeError("Unable to delete the participant photo.") from error
+
+
+def permanently_delete_participants(participants):
+    try:
+        for participant in participants:
+            delete_participant_photo(participant)
+
+        for participant in participants:
+            db.session.delete(participant)
+
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        logger.exception("Unable to permanently delete participant records.")
+        raise
+
+
+def participant_ids_from_request():
+    payload = request.get_json(silent=True) or {}
+    participant_ids = payload.get("participant_ids")
+
+    if not isinstance(participant_ids, list) or not participant_ids:
+        return None
+
+    if any(not isinstance(participant_id, int) or isinstance(participant_id, bool) or participant_id <= 0
+           for participant_id in participant_ids):
+        return None
+
+    return list(dict.fromkeys(participant_ids))
+
+
+@admin_bp.route("/admin/participants/<int:id>", methods=["DELETE"])
+def delete_participant_api(id):
+
+    if not session.get("admin"):
+        return jsonify({"success": False, "message": "Authentication required."}), 401
+
+    participant = Participant.query.get(id)
+    if not participant:
+        return jsonify({"success": False, "message": "Participant not found."}), 404
+
+    try:
+        permanently_delete_participants([participant])
+    except Exception:
+        return jsonify({"success": False, "message": "Unable to delete participant. Please try again."}), 500
+
+    return jsonify({"success": True, "message": "Participant deleted successfully.", "deleted_id": id})
+
+
+@admin_bp.route("/admin/participants/bulk-delete", methods=["POST"])
+def bulk_delete_participants():
+
+    if not session.get("admin"):
+        if request.is_json:
+            return jsonify({"success": False, "message": "Authentication required."}), 401
+        return redirect(url_for("routes.login"))
+
+    if request.is_json:
+        participant_ids = participant_ids_from_request()
+    else:
+        participant_ids = list(dict.fromkeys(request.form.getlist("participant_ids", type=int)))
+
+    if not participant_ids:
+        if request.is_json:
+            return jsonify({"success": False, "message": "Select at least one valid participant."}), 400
+        return redirect(url_for("admin.admin", bulk_delete_error="no_selection"))
+
+    participants = Participant.query.filter(Participant.id.in_(participant_ids)).all()
+    found_ids = {participant.id for participant in participants}
+    missing_ids = [participant_id for participant_id in participant_ids if participant_id not in found_ids]
+    if missing_ids:
+        if request.is_json:
+            return jsonify({"success": False, "message": "One or more participants were not found."}), 404
+        return redirect(url_for("admin.admin", bulk_delete_error="not_found"))
+
+    try:
+        permanently_delete_participants(participants)
+    except Exception:
+        if request.is_json:
+            return jsonify({"success": False, "message": "Unable to delete participants. Please try again."}), 500
+        return redirect(url_for("admin.admin", bulk_delete_error="failed"))
+
+    if request.is_json:
+        return jsonify({
+            "success": True,
+            "message": f"Successfully deleted {len(participants)} participants.",
+            "deleted_ids": participant_ids,
+        })
+    return redirect(url_for("admin.admin", bulk_deleted=len(participants)))
+
+
+@admin_bp.route("/admin/events/participants/delete-all", methods=["POST"])
+def delete_completed_event_participants():
+
+    if not session.get("admin"):
+        return redirect(url_for("routes.login"))
+
+    event_id = request.form.get("completed_event_id", type=int)
+    if not event_id:
+        return redirect(url_for("admin.admin", cleanup_error="no_event"))
+
+    event = Event.query.get_or_404(event_id)
+    if event.is_active:
+        return redirect(url_for("admin.admin", cleanup_error="event_active"))
+
+    participants = Participant.query.filter_by(event_id=event.id).all()
+    try:
+        permanently_delete_participants(participants)
+    except Exception:
+        return redirect(url_for("admin.admin", cleanup_error="failed"))
+
+    return redirect(url_for("admin.admin", event_cleanup_deleted=len(participants)))
+
+
 @admin_bp.route("/delete/<int:id>", methods=["POST"])
 def delete_participant(id):
 
@@ -2047,9 +2204,10 @@ def delete_participant(id):
 
     participant = Participant.query.get_or_404(id)
 
-    db.session.delete(participant)
-
-    db.session.commit()
+    try:
+        permanently_delete_participants([participant])
+    except Exception:
+        return redirect(url_for("admin.admin", delete_error="failed"))
 
     return redirect(url_for("admin.admin"))
 

@@ -151,6 +151,14 @@ PHOTO
 
 }
 
+.delete-toast-container{
+    position:fixed;
+    top:20px;
+    right:20px;
+    z-index:1080;
+    min-width:280px;
+}
+
 /* ===========================
 BADGES
 =========================== */
@@ -413,12 +421,55 @@ SEARCH PANEL
 
 </div>
 
+{% if request.args.get('bulk_deleted') %}
+<div class="alert alert-success">Deleted {{ request.args.get('bulk_deleted') }} selected participant record(s).</div>
+{% endif %}
+
+{% if request.args.get('event_cleanup_deleted') is not none %}
+<div class="alert alert-success">Deleted {{ request.args.get('event_cleanup_deleted') }} participant record(s) from the completed event.</div>
+{% endif %}
+
+{% if request.args.get('bulk_delete_error') == 'no_selection' %}
+<div class="alert alert-warning">Select at least one participant before using bulk delete.</div>
+{% endif %}
+
+{% if request.args.get('cleanup_error') == 'event_active' %}
+<div class="alert alert-warning">Only inactive (completed) events can have all participant details deleted.</div>
+{% endif %}
+
+{% if request.args.get('cleanup_error') == 'no_event' %}
+<div class="alert alert-warning">Choose a completed event before deleting its participant details.</div>
+{% endif %}
+
 
 <!-- ===========================
 PARTICIPANT TABLE
 =========================== -->
 
 <div class="table-box">
+
+<div class="d-flex flex-column flex-lg-row gap-3 justify-content-between align-items-lg-center mb-3">
+    <form id="bulk-delete-form" method="POST" action="{{ url_for('admin.bulk_delete_participants') }}">
+        <button id="delete-selected-button" type="button" class="btn btn-danger" disabled>
+            <i class="fa-solid fa-trash-can"></i> Delete Selected
+        </button>
+        <small id="selected-participant-count" class="text-muted ms-2">0 selected</small>
+    </form>
+
+    {% if completed_events %}
+    <form method="POST" action="{{ url_for('admin.delete_completed_event_participants') }}" class="d-flex gap-2" onsubmit="return confirm('Delete ALL participant details for this completed event? This cannot be undone.');">
+        <select name="completed_event_id" class="form-select" aria-label="Completed event to clean up" required>
+            <option value="">Delete all participants from completed event...</option>
+            {% for event in completed_events %}
+            <option value="{{ event.id }}">{{ event.name }}</option>
+            {% endfor %}
+        </select>
+        <button type="submit" class="btn btn-outline-danger">
+            Delete All
+        </button>
+    </form>
+    {% endif %}
+</div>
 
 <div class="table-responsive">
 
@@ -427,6 +478,10 @@ PARTICIPANT TABLE
 <thead>
 
 <tr>
+
+<th class="text-center">
+    <input type="checkbox" id="select-all-participants" aria-label="Select all participants on this page">
+</th>
 
 <th>Photo</th>
 
@@ -452,7 +507,11 @@ Actions
 
 <tbody>
 {% for p in participants.items %}
-<tr>
+<tr data-participant-id="{{ p.id }}">
+
+<td class="text-center">
+    <input class="participant-select" type="checkbox" name="participant_ids" value="{{ p.id }}" form="bulk-delete-form" aria-label="Select {{ p.teacher_name }}">
+</td>
 
 <!-- ================= PHOTO ================= -->
 
@@ -623,18 +682,13 @@ Preview Certificate {% if p.certificate_approved %}<i class="fa-solid fa-circle-
 </form>
 {% endif %}
 
-<form method="POST" action="{{ url_for('admin.delete_participant', id=p.id) }}" class="d-inline"
-onsubmit="return confirm('Delete this participant?')">
-
-<button type="submit" class="btn btn-danger btn-sm btn-action">
+<button type="button" class="btn btn-danger btn-sm btn-action participant-delete-button" data-delete-url="{{ url_for('admin.delete_participant_api', id=p.id) }}">
 
 <i class="fa-solid fa-trash"></i>
 
 Delete
 
 </button>
-
-</form>
 
 </div>
 
@@ -647,7 +701,7 @@ Delete
 
 <tr>
 
-<td colspan="8" class="text-center py-5">
+<td colspan="9" class="text-center py-5">
 
 <i class="fa-solid fa-circle-info fa-3x text-secondary mb-3"></i>
 
@@ -913,6 +967,8 @@ SRI BROTHERS - Web Development & IT Solutions
 JAVASCRIPT
 =========================== -->
 
+<div id="delete-toast-container" class="delete-toast-container" aria-live="polite" aria-atomic="true"></div>
+
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 
 <script>
@@ -953,6 +1009,183 @@ this.form.submit();
 });
 
 }
+
+const selectAllParticipants=document.getElementById("select-all-participants");
+const selectedParticipantCount=document.getElementById("selected-participant-count");
+const deleteSelectedButton=document.getElementById("delete-selected-button");
+const bulkDeleteForm=document.getElementById("bulk-delete-form");
+
+function selectedParticipantIds(){
+
+return Array.from(document.querySelectorAll(".participant-select:checked")).map(function(checkbox){
+
+return Number(checkbox.value);
+
+});
+
+}
+
+function updateSelectionState(){
+
+const checkboxes=Array.from(document.querySelectorAll(".participant-select"));
+const selectedIds=selectedParticipantIds();
+
+selectedParticipantCount.textContent=selectedIds.length + " selected";
+deleteSelectedButton.disabled=selectedIds.length===0;
+
+if(selectAllParticipants){
+
+selectAllParticipants.checked=checkboxes.length>0 && selectedIds.length===checkboxes.length;
+selectAllParticipants.indeterminate=selectedIds.length>0 && selectedIds.length<checkboxes.length;
+
+}
+
+}
+
+function setDeleteControlsDisabled(disabled){
+
+deleteSelectedButton.disabled=disabled || selectedParticipantIds().length===0;
+document.querySelectorAll(".participant-delete-button").forEach(function(button){
+
+button.disabled=disabled;
+
+});
+
+}
+
+function showDeleteToast(message,type){
+
+const toastElement=document.createElement("div");
+toastElement.className="toast align-items-center text-bg-" + type + " border-0";
+toastElement.setAttribute("role","alert");
+toastElement.innerHTML='<div class="d-flex"><div class="toast-body"></div><button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button></div>';
+toastElement.querySelector(".toast-body").textContent=message;
+document.getElementById("delete-toast-container").appendChild(toastElement);
+toastElement.addEventListener("hidden.bs.toast",function(){toastElement.remove();});
+new bootstrap.Toast(toastElement,{delay:3500}).show();
+
+}
+
+async function deleteRequest(url,method,body){
+
+const csrfToken=bulkDeleteForm.querySelector('input[name="csrf_token"]')?.value;
+const response=await fetch(url,{
+
+method:method,
+credentials:"same-origin",
+headers:{"Content-Type":"application/json","Accept":"application/json","X-CSRFToken":csrfToken || ""},
+body:body ? JSON.stringify(body) : null
+
+});
+const payload=await response.json().catch(function(){return {};});
+
+if(!response.ok){
+
+throw new Error(payload.message || "Unable to delete participant. Please try again.");
+
+}
+
+return payload;
+
+}
+
+if(selectAllParticipants){
+
+selectAllParticipants.addEventListener("change",function(){
+
+document.querySelectorAll(".participant-select").forEach(function(checkbox){
+
+checkbox.checked=selectAllParticipants.checked;
+
+});
+updateSelectionState();
+
+});
+
+}
+
+document.querySelectorAll(".participant-select").forEach(function(checkbox){
+
+checkbox.addEventListener("change",updateSelectionState);
+
+});
+
+document.querySelectorAll(".participant-delete-button").forEach(function(button){
+
+button.addEventListener("click",async function(){
+
+if(!confirm("Are you sure you want to permanently delete this participant? This action cannot be undone.")){
+
+return;
+
+}
+
+const originalContent=button.innerHTML;
+setDeleteControlsDisabled(true);
+button.innerHTML='<span class="spinner-border spinner-border-sm" aria-hidden="true"></span> Deleting...';
+
+try{
+
+const result=await deleteRequest(button.dataset.deleteUrl,"DELETE");
+button.closest("tr").remove();
+showDeleteToast(result.message,"success");
+updateSelectionState();
+setTimeout(function(){window.location.reload();},800);
+
+}catch(error){
+
+showDeleteToast(error.message,"danger");
+button.innerHTML=originalContent;
+setDeleteControlsDisabled(false);
+
+}
+
+});
+
+});
+
+deleteSelectedButton.addEventListener("click",async function(){
+
+const participantIds=selectedParticipantIds();
+if(!participantIds.length){
+
+return;
+
+}
+
+if(!confirm("Are you sure you want to permanently delete " + participantIds.length + " selected participants? This action cannot be undone.")){
+
+return;
+
+}
+
+const originalContent=deleteSelectedButton.innerHTML;
+setDeleteControlsDisabled(true);
+deleteSelectedButton.innerHTML='<span class="spinner-border spinner-border-sm" aria-hidden="true"></span> Deleting...';
+
+try{
+
+const result=await deleteRequest(bulkDeleteForm.action,"POST",{participant_ids:participantIds});
+result.deleted_ids.forEach(function(participantId){
+
+document.querySelector('tr[data-participant-id="' + participantId + '"]')?.remove();
+
+});
+showDeleteToast(result.message,"success");
+updateSelectionState();
+setTimeout(function(){window.location.reload();},800);
+
+}catch(error){
+
+showDeleteToast(error.message,"danger");
+deleteSelectedButton.innerHTML=originalContent;
+setDeleteControlsDisabled(false);
+
+}
+
+});
+
+updateSelectionState();
 
 
 // ===========================

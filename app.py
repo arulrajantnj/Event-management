@@ -67,6 +67,9 @@ app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
 # ==========================
 
 app.config["UPLOAD_FOLDER"] = "static/certificate_templates"
+app.config["PARTICIPANT_PHOTO_STORAGE"] = os.getenv("PARTICIPANT_PHOTO_STORAGE", "local")
+app.config["AWS_S3_BUCKET"] = os.getenv("AWS_S3_BUCKET", "")
+app.config["AWS_S3_REGION"] = os.getenv("AWS_S3_REGION", "")
 
 os.makedirs("static/certificate_templates", exist_ok=True)
 # Generated Files
