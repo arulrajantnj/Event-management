@@ -7,10 +7,10 @@
             <div class="ticker-track">
                 {% if ticker_items %}
                     {% for item in ticker_items %}
-                    <a class="ticker-item" href="{{ item.url }}" style='font-family: {{ item.font_family|default("Poppins", true)|tojson }}, sans-serif;'>{{ item.message }}</a>
+                    <a class="ticker-item" href="{{ item.url }}" style='font-family: {{ item.font_family|default("Poppins", true)|tojson }}, sans-serif; color: {{ item.font_color|default("#ffffff", true) }};{% if item.font_size|default(0)|int > 0 %} font-size: {{ item.font_size|int }}px;{% endif %}'>{{ item.message }}</a>
                     {% endfor %}
                     {% for item in ticker_items %}
-                    <a class="ticker-item" href="{{ item.url }}" style='font-family: {{ item.font_family|default("Poppins", true)|tojson }}, sans-serif;'>{{ item.message }}</a>
+                    <a class="ticker-item" href="{{ item.url }}" style='font-family: {{ item.font_family|default("Poppins", true)|tojson }}, sans-serif; color: {{ item.font_color|default("#ffffff", true) }};{% if item.font_size|default(0)|int > 0 %} font-size: {{ item.font_size|int }}px;{% endif %}'>{{ item.message }}</a>
                     {% endfor %}
                 {% else %}
                     <span class="ticker-item">New event registrations will appear here automatically.</span>

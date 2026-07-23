@@ -114,6 +114,14 @@ class Event(db.Model):
     description_font_family = db.Column(db.String(120), default="Poppins", nullable=False)
     marquee_font_family = db.Column(db.String(120), default="Poppins", nullable=False)
     registration_font_family = db.Column(db.String(120), default="Poppins", nullable=False)
+    title_font_color = db.Column(db.String(7), default="#ffffff", nullable=False)
+    title_font_size = db.Column(db.Integer, default=0, nullable=False)
+    description_font_color = db.Column(db.String(7), default="#6c757d", nullable=False)
+    description_font_size = db.Column(db.Integer, default=0, nullable=False)
+    marquee_font_color = db.Column(db.String(7), default="#ffffff", nullable=False)
+    marquee_font_size = db.Column(db.Integer, default=0, nullable=False)
+    registration_font_color = db.Column(db.String(7), default="#0d6efd", nullable=False)
+    registration_font_size = db.Column(db.Integer, default=0, nullable=False)
 
     # Optional content shown above the participant registration form.
     registration_header = db.Column(db.String(255))

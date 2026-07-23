@@ -164,6 +164,8 @@ def home():
         {
             "title": event.name,
             "font_family": event.title_font_family,
+            "font_color": event.title_font_color,
+            "font_size": event.title_font_size,
             "url": (
                 url_for("routes.exam_login")
                 if event.registration_type == "no_registration" and event.exam_enabled
@@ -182,6 +184,8 @@ def home():
                 else f"{event.name} registration is now open."
             ),
             "font_family": event.marquee_font_family,
+            "font_color": event.marquee_font_color,
+            "font_size": event.marquee_font_size,
             "url": url_for("routes.register", event=event.slug),
         }
         for event in events

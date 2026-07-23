@@ -286,6 +286,15 @@ def event_payload_from_form(event=None, uploaded_font_name=""):
     selected_font = lambda field_name: valid_web_font_name(
         uploaded_font_name if apply_uploaded_font else request.form.get(field_name),
     )
+    selected_color = lambda field_name, default: (
+        request.form.get(field_name, default).strip()
+        if re.fullmatch(r"#[0-9a-fA-F]{6}", request.form.get(field_name, "").strip())
+        else default
+    )
+    selected_size = lambda field_name: min(
+        max(request.form.get(field_name, 0, type=int) or 0, 0),
+        96,
+    )
 
     return {
         "name": request.form.get("name", "").strip(),
@@ -315,6 +324,14 @@ def event_payload_from_form(event=None, uploaded_font_name=""):
         "description_font_family": selected_font("description_font_family"),
         "marquee_font_family": selected_font("marquee_font_family"),
         "registration_font_family": selected_font("registration_font_family"),
+        "title_font_color": selected_color("title_font_color", "#ffffff"),
+        "title_font_size": selected_size("title_font_size"),
+        "description_font_color": selected_color("description_font_color", "#6c757d"),
+        "description_font_size": selected_size("description_font_size"),
+        "marquee_font_color": selected_color("marquee_font_color", "#ffffff"),
+        "marquee_font_size": selected_size("marquee_font_size"),
+        "registration_font_color": selected_color("registration_font_color", "#0d6efd"),
+        "registration_font_size": selected_size("registration_font_size"),
         "registration_header": request.form.get("registration_header", "").strip(),
         "registration_instructions": request.form.get("registration_instructions", "").strip(),
         "show_registration_header": checkbox_value("show_registration_header"),
