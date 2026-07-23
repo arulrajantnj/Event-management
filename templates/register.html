@@ -339,7 +339,7 @@ body{
     </div>
 </div>
 
-<h1>
+<h1{% if selected_event %} style='font-family: {{ selected_event.registration_font_family|default("Poppins", true)|tojson }}, sans-serif;'{% endif %}>
 {% if selected_event %}
 {{ selected_event.registration_header if selected_event.show_registration_header and selected_event.registration_header else selected_event.name }}
 {% else %}
@@ -366,7 +366,7 @@ Event Registration
 {% if selected_event and selected_event.show_registration_instructions and selected_event.registration_instructions %}
 <div class="alert alert-info mb-4">
     <strong><i class="fa-solid fa-circle-info"></i> Instructions</strong>
-    <div class="mt-2" style="white-space: pre-line;">{{ selected_event.registration_instructions }}</div>
+    <div class="mt-2" style="white-space: pre-line; font-family: {{ selected_event.registration_font_family|default("Poppins", true)|tojson }}, sans-serif;">{{ selected_event.registration_instructions }}</div>
 </div>
 {% endif %}
 

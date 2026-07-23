@@ -28,8 +28,8 @@
                         <span class="badge bg-secondary">No Photo Needed</span>
                         {% endif %}
                     </div>
-                    <h4>{{ event.name }}</h4>
-                    <p class="text-muted flex-grow-1">
+                    <h4 style='font-family: {{ event.title_font_family|default("Poppins", true)|tojson }}, sans-serif;'>{{ event.name }}</h4>
+                    <p class="text-muted flex-grow-1" style='font-family: {{ event.description_font_family|default("Poppins", true)|tojson }}, sans-serif;'>
                         {{ event.description or ("Service is available for this event." if event.registration_type == "no_registration" else "Registration is open for this event.") }}
                     </p>
                     <div class="event-meta mb-3">

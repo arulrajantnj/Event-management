@@ -8,6 +8,7 @@ from flask_wtf.csrf import CSRFError
 from sqlalchemy.exc import OperationalError
 
 from models import db, Block, Event, EventField
+from font_utils import available_web_fonts
 from extensions import csrf, limiter
 from security import configure_security, install_security_hooks
 
@@ -98,6 +99,11 @@ app.register_blueprint(admin_bp)
 app.register_blueprint(layout_bp)
 app.register_blueprint(chess_bp)
 install_security_hooks(app)
+
+
+@app.context_processor
+def inject_uploaded_fonts():
+    return {"site_fonts": available_web_fonts()}
 
 
 @app.errorhandler(OperationalError)

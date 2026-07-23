@@ -34,6 +34,7 @@ from werkzeug.security import generate_password_hash
 from attendance_service import mark_attendance as service_mark_attendance
 from routes import generate_participant_code, registration_id_for_event
 from certificate_generator import generate_certificate
+from font_utils import FONT_DIR, SUPPORTED_WEB_FONT_EXTENSIONS, font_display_name, valid_web_font_name
 
 
 admin_bp = Blueprint("admin", __name__)
@@ -230,7 +231,22 @@ def seed_event_fields(event):
         )
 
 
-def event_payload_from_form(event=None):
+def save_event_font_upload(field_name):
+    uploaded = request.files.get(field_name)
+    if not uploaded or not uploaded.filename:
+        return ""
+
+    filename = secure_filename(uploaded.filename)
+    _, extension = os.path.splitext(filename)
+    if not filename or extension.lower() not in SUPPORTED_WEB_FONT_EXTENSIONS:
+        return ""
+
+    os.makedirs(FONT_DIR, exist_ok=True)
+    uploaded.save(os.path.join(FONT_DIR, filename))
+    return font_display_name(filename)
+
+
+def event_payload_from_form(event=None, uploaded_font_name=""):
     collect_photo = checkbox_value("collect_photo")
     registration_type = request.form.get("registration_type", "teacher").strip() or "teacher"
     if registration_type == "no_registration":
@@ -266,6 +282,11 @@ def event_payload_from_form(event=None):
     if whatsapp_group_link and not re.match(r"^https?://", whatsapp_group_link, re.I):
         whatsapp_group_link = f"https://{whatsapp_group_link}"
 
+    apply_uploaded_font = checkbox_value("apply_uploaded_font") and uploaded_font_name
+    selected_font = lambda field_name: valid_web_font_name(
+        uploaded_font_name if apply_uploaded_font else request.form.get(field_name),
+    )
+
     return {
         "name": request.form.get("name", "").strip(),
         "slug": request.form.get("slug", "").strip(),
@@ -290,6 +311,10 @@ def event_payload_from_form(event=None):
         "collect_school_area": True,
         "collect_block": True,
         "marquee_message": request.form.get("marquee_message", "").strip(),
+        "title_font_family": selected_font("title_font_family"),
+        "description_font_family": selected_font("description_font_family"),
+        "marquee_font_family": selected_font("marquee_font_family"),
+        "registration_font_family": selected_font("registration_font_family"),
         "registration_header": request.form.get("registration_header", "").strip(),
         "registration_instructions": request.form.get("registration_instructions", "").strip(),
         "show_registration_header": checkbox_value("show_registration_header"),
@@ -1354,7 +1379,7 @@ def events():
         return redirect(url_for("routes.login"))
 
     if request.method == "POST":
-        payload = event_payload_from_form()
+        payload = event_payload_from_form(uploaded_font_name=save_event_font_upload("public_font_file"))
         name = payload["name"]
         slug = payload["slug"]
 
@@ -1448,7 +1473,7 @@ def edit_event(id):
         db.session.commit()
 
     if request.method == "POST":
-        payload = event_payload_from_form(event)
+        payload = event_payload_from_form(event, save_event_font_upload("public_font_file"))
 
         existing = Event.query.filter(
             Event.slug == payload["slug"],

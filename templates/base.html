@@ -41,6 +41,16 @@
     <link rel="stylesheet"
           href="{{ url_for('static',filename='css/style.css') }}">
 
+    <style>
+    {% for font in site_fonts if font.filename %}
+    @font-face {
+        font-family: {{ font.name|tojson }};
+        src: url({{ url_for('static', filename='fonts/' ~ font.filename)|tojson }});
+        font-display: swap;
+    }
+    {% endfor %}
+    </style>
+
 </head>
 
 <body>

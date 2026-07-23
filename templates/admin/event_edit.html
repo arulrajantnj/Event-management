@@ -79,6 +79,21 @@
                             <input type="text" name="marquee_message" class="form-control" value="{{ event.marquee_message or '' }}">
                         </div>
 
+                        <div class="col-12">
+                            <div class="border rounded-4 p-3 bg-light">
+                                <h6 class="mb-2">Public Text Fonts</h6>
+                                <p class="small text-muted">Choose the font used on the website for each text area. Upload a new Tamil font here when needed.</p>
+                                <div class="row g-2">
+                                    <div class="col-md-6"><label class="form-label">Event title / Priority Events</label><select name="title_font_family" class="form-select">{% for font in site_fonts %}<option value="{{ font.name }}" {% if event.title_font_family == font.name %}selected{% endif %}>{{ font.name }}</option>{% endfor %}</select></div>
+                                    <div class="col-md-6"><label class="form-label">Event description</label><select name="description_font_family" class="form-select">{% for font in site_fonts %}<option value="{{ font.name }}" {% if event.description_font_family == font.name %}selected{% endif %}>{{ font.name }}</option>{% endfor %}</select></div>
+                                    <div class="col-md-6"><label class="form-label">Scrolling message</label><select name="marquee_font_family" class="form-select">{% for font in site_fonts %}<option value="{{ font.name }}" {% if event.marquee_font_family == font.name %}selected{% endif %}>{{ font.name }}</option>{% endfor %}</select></div>
+                                    <div class="col-md-6"><label class="form-label">Registration heading / instructions</label><select name="registration_font_family" class="form-select">{% for font in site_fonts %}<option value="{{ font.name }}" {% if event.registration_font_family == font.name %}selected{% endif %}>{{ font.name }}</option>{% endfor %}</select></div>
+                                    <div class="col-md-8"><label class="form-label">Upload a Tamil font</label><input type="file" name="public_font_file" class="form-control" accept=".ttf,.otf,.ttc"><div class="form-text">Use `.ttf`, `.otf`, or `.ttc` fonts only.</div></div>
+                                    <div class="col-md-4 d-flex align-items-end"><div class="form-check mb-2"><input class="form-check-input" type="checkbox" name="apply_uploaded_font" id="applyUploadedFont"><label class="form-check-label" for="applyUploadedFont">Apply uploaded font to all text above</label></div></div>
+                                </div>
+                            </div>
+                        </div>
+
                         <div class="col-md-6">
                             <label class="form-label">Hero Priority</label>
                             <input type="number" name="hero_priority" class="form-control" value="{{ event.hero_priority or 0 }}" min="0">

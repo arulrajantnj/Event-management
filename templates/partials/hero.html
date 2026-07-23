@@ -28,7 +28,7 @@
                             href="{{ item.url if not item.disabled else '#' }}"
                             class="priority-event-link {% if item.disabled %}disabled{% endif %}">
                             <span class="latest-dot">{{ 'RESULT' if item.kind == 'result' else 'LATEST' }}</span>
-                            <span>{{ item.title }}</span>
+                            <span style='font-family: {{ item.font_family|default("Poppins", true)|tojson }}, sans-serif;'>{{ item.title }}</span>
                         </a>
                         {% endfor %}
                     </div>
