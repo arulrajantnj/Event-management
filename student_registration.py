@@ -2,7 +2,7 @@ from datetime import datetime
 import re
 
 from flask import Blueprint, redirect, render_template, request, session, url_for
-from werkzeug.security import check_password_hash, generate_password_hash
+from werkzeug.security import generate_password_hash
 
 from extensions import limiter
 from models import db
@@ -89,24 +89,8 @@ def register():
 
 
 @student_registration_bp.route("/student/login", methods=["GET", "POST"])
-@limiter.limit("5 per minute", methods=["POST"])
 def login():
-    error = ""
-    if request.method == "POST":
-        student = Student.query.filter_by(username=request.form.get("username", "").strip()).first()
-        if not student or not check_password_hash(student.password_hash, request.form.get("password", "")):
-            error = "Invalid username or password."
-        elif student.approval_status == "pending":
-            error = "Your registration is waiting for administrator approval."
-        elif student.approval_status == "rejected":
-            error = f"Registration rejected. Reason: {student.rejection_reason or 'Contact the administrator.'}"
-        elif not student.is_active:
-            error = "Your student account is inactive."
-        else:
-            student.last_login = datetime.utcnow(); audit(student, "login"); db.session.commit()
-            session.clear(); session["student_id"] = student.id; session.permanent = True
-            return redirect(url_for("offline_exam.exams"))
-    return render_template("student/login.html", error=error)
+    return redirect(url_for("routes.exam_login"), code=307 if request.method == "POST" else 302)
 
 
 @student_registration_bp.route("/student/dashboard")
@@ -120,4 +104,4 @@ def dashboard():
 @student_registration_bp.route("/student/logout")
 def logout():
     session.pop("student_id", None)
-    return redirect(url_for("student_registration.login"))
+    return redirect(url_for("routes.exam_login"))

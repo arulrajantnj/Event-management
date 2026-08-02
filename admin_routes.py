@@ -1,4 +1,4 @@
-from flask import Blueprint, jsonify, render_template, request, redirect, session, send_file, url_for, current_app
+from flask import Blueprint, abort, jsonify, render_template, request, redirect, session, send_file, url_for, current_app
 from models import (
     db,
     Event,

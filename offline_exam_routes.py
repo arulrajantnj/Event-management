@@ -14,7 +14,7 @@ from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.pdfgen import canvas
 
-from models import db, OnlineExam
+from models import db, OnlineExam, Participant
 from offline_exam_models import (ExamModeSelection, OfflineExamAttendance, OfflineExamAuditLog,
                                  OfflineExamMark, OfflineExamStudent, QuestionPaperDownloadLog)
 from student_models import Student
@@ -132,6 +132,31 @@ def exam_total_marks(exam):
                      for question in exam.questions if question.is_active))
 
 
+def online_exam_participant(student, exam):
+    """Return the event participant record used to store a student's online attempts."""
+    registration_id = f"S{student.id}E{exam.event_id}"
+    participant = Participant.query.filter_by(reg_id=registration_id).first()
+    if participant:
+        return participant
+
+    participant = Participant(
+        reg_id=registration_id,
+        event_id=exam.event_id,
+        teacher_name=student.student_name,
+        mobile=f"ST{student.id}",
+        email=f"student-{student.id}@exam.local",
+        designation="Student",
+        subject=student.student_class or "Student",
+        school_name=student.school_name or "",
+        school_area=student.udise_no or "",
+        block=student.section or "",
+        payment_status="not_required",
+    )
+    db.session.add(participant)
+    db.session.flush()
+    return participant
+
+
 @offline_exam_bp.route("/offline-exams")
 def exams():
     person = operator()
@@ -150,7 +175,14 @@ def select_mode(exam_id):
         if not selection: selection = ExamModeSelection(student_id=person.id, exam_id=exam.id, mode=mode); db.session.add(selection)
         else: selection.mode, selection.selected_datetime = mode, datetime.utcnow()
         selection.ip_address = request.remote_addr or ""; log(exam.id, person.id, "mode_selected", mode); db.session.commit()
-        return redirect(url_for("offline_exam.selection", exam_id=exam.id) if mode == "OFFLINE" else url_for("routes.exam_login"))
+        if mode == "OFFLINE":
+            return redirect(url_for("offline_exam.selection", exam_id=exam.id))
+
+        participant = online_exam_participant(person, exam)
+        db.session.commit()
+        session["exam_participant_id"] = participant.id
+        session.permanent = True
+        return redirect(url_for("routes.take_exam", exam_id=exam.id))
     return render_template("exam_mode.html", exam=exam)
 
 

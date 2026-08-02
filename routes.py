@@ -31,7 +31,7 @@ from models import (
 )
 from certificate_generator import generate_certificate, get_active_template
 from offline_exam_models import OfflineExamMark
-from student_models import Student
+from student_models import Student, StudentAuditLog
 
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
@@ -1818,6 +1818,26 @@ def exam_login():
     if request.method == "POST":
         username = request.form.get("username", "").strip()
         password = request.form.get("password", "")
+
+        student = Student.query.filter_by(username=username).first()
+        if student:
+            if not check_password_hash(student.password_hash, password):
+                return render_template("exam_login.html", error="Invalid username or password.")
+            if student.approval_status == "pending":
+                return render_template("exam_login.html", error="Your registration is waiting for administrator approval.")
+            if student.approval_status == "rejected":
+                reason = student.rejection_reason or "Contact the administrator."
+                return render_template("exam_login.html", error=f"Registration rejected. Reason: {reason}")
+            if not student.is_active:
+                return render_template("exam_login.html", error="Your student account is inactive.")
+
+            student.last_login = datetime.utcnow()
+            db.session.add(StudentAuditLog(student_id=student.id, action="login", actor="Student"))
+            db.session.commit()
+            session.clear()
+            session["student_id"] = student.id
+            session.permanent = True
+            return redirect(url_for("offline_exam.exams"))
 
         participant = Participant.query.filter_by(
             exam_username=username
