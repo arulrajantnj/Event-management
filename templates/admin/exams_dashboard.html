@@ -29,6 +29,9 @@
 {% endblock %}
 
 {% block content %}
+{% if request.args.get('download_reset') %}
+<div class="alert alert-success">Question-paper download limit reset successfully. The school can download the paper again.</div>
+{% endif %}
 <div class="d-flex flex-wrap gap-2 mb-3">
     <a href="{{ url_for('admin.exams_dashboard') }}" class="btn btn-outline-primary btn-sm">
         <i class="fa-solid fa-gauge"></i> Dashboard
@@ -107,6 +110,32 @@
     <div class="col-lg-6"><canvas class="exam-chart" id="examSubjectChart"></canvas></div>
     <div class="col-lg-6"><canvas class="exam-chart" id="examStatusChart"></canvas></div>
     <div class="col-lg-6"><canvas class="exam-chart" id="examResultChart"></canvas></div>
+</div>
+
+<div class="card mt-4">
+    <div class="card-header bg-warning">Offline Question-Paper Downloads</div>
+    <div class="table-responsive">
+        <table class="table table-striped align-middle mb-0">
+            <thead><tr><th>Exam</th><th>School UDISE</th><th>Downloaded</th><th>IP Address</th><th>Action</th></tr></thead>
+            <tbody>
+                {% for download, exam in question_paper_downloads %}
+                <tr>
+                    <td>{{ exam.exam_title }}<div class="small text-muted">{{ exam.exam_code }}</div></td>
+                    <td>{{ download.school_udise }}</td>
+                    <td>{{ download.download_datetime.strftime('%d-%m-%Y %H:%M') }}</td>
+                    <td>{{ download.ip_address or '-' }}</td>
+                    <td>
+                        <form method="post" action="{{ url_for('admin.reset_question_paper_download', log_id=download.id) }}" onsubmit="return confirm('Allow this school to download the question paper again?')">
+                            <button class="btn btn-sm btn-danger">Reset Download Limit</button>
+                        </form>
+                    </td>
+                </tr>
+                {% else %}
+                <tr><td colspan="5" class="text-center text-muted py-4">No question-paper downloads found.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
 </div>
 
 <div class="card mt-4">

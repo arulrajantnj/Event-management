@@ -142,7 +142,7 @@
                         {% endif %}
 
                         {% if event.participant_bulk_upload_enabled %}
-                        <div class="col-12"><div class="border rounded-4 p-3 bg-light"><h6>Bulk Upload Participants</h6><div class="row g-2 align-items-end"><div class="col-md-8"><label class="form-label">Excel / CSV file</label><input form="participant-import-form" type="file" name="participants_file" class="form-control" accept=".xlsx,.xls,.csv" required><small class="text-muted">Required: name and mobile. Optional: email, salutation, designation, subject, school_name, school_area, block.</small></div><div class="col-md-4"><button form="participant-import-form" class="btn btn-primary w-100">Upload & Generate QR Codes</button></div></div></div></div>
+                        <div class="col-12"><div class="border rounded-4 p-3 bg-light"><h6>Bulk Upload Participants</h6><div class="row g-2 align-items-end"><div class="col-md-8"><label class="form-label">Excel / CSV file</label><input form="participant-import-form" type="file" name="participants_file" class="form-control" accept=".xlsx,.xls,.csv" required><small class="text-muted">Required: name and mobile. Optional: email, salutation, designation, subject, school_name, school_area, block.</small></div><div class="col-md-4"><button form="participant-import-form" class="btn btn-primary w-100">Upload & Generate QR Codes</button><a class="btn btn-link btn-sm w-100 mt-1" href="{{ url_for('admin.download_import_template', template_name='participants') }}">Download Excel template</a></div></div></div></div>
                         {% endif %}
 
                         <div class="col-12">

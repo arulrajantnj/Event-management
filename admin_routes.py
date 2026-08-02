@@ -20,6 +20,7 @@ from models import (
     CompetitionRegistration,
 )
 from datetime import datetime
+from zoneinfo import ZoneInfo
 import math
 from io import BytesIO
 import json
@@ -35,6 +36,11 @@ from attendance_service import mark_attendance as service_mark_attendance
 from routes import generate_participant_code, registration_id_for_event
 from certificate_generator import generate_certificate
 from font_utils import FONT_DIR, SUPPORTED_WEB_FONT_EXTENSIONS, font_display_name, valid_web_font_name
+from excel_imports import read_import_file, value_from_row, workbook_response
+from offline_exam_models import (OfflineExamAttendance, OfflineExamAuditLog,
+                                 OfflineExamMark, OfflineExamStudent,
+                                 QuestionPaperDownloadLog)
+from student_models import Student
 
 
 admin_bp = Blueprint("admin", __name__)
@@ -512,7 +518,7 @@ def recalculate_attempt_scores(attempt):
 
 
 def online_exam_status(exam):
-    now = datetime.utcnow()
+    now = datetime.now(ZoneInfo("Asia/Kolkata")).replace(tzinfo=None)
     if exam.start_at and now < exam.start_at:
         return "Upcoming"
     if exam.end_at and now > exam.end_at:
@@ -996,15 +1002,43 @@ def unique_exam_reg_id():
 
 
 def row_value(row, *names):
-    for name in names:
-        value = row.get(name)
-        if pd.notna(value):
-            if isinstance(value, float) and value.is_integer():
-                value = int(value)
-            value = str(value).strip()
-            if value:
-                return value
-    return ""
+    return value_from_row(row, *names)
+
+
+IMPORT_TEMPLATES = {
+    "participants": (
+        ["name", "mobile", "email", "salutation", "designation", "subject", "school_name", "school_area", "block"],
+        ["Required columns: name, mobile.", "All remaining columns are optional.", "Keep mobile numbers formatted as Text in Excel to preserve leading zeroes."],
+    ),
+    "exam_users": (
+        ["username", "password", "name", "unique_id", "email", "designation", "subject", "school_name", "school_area", "block"],
+        ["Required columns: username, password, name, unique_id.", "unique_id may be a mobile number, roll number, or administrator-issued number.", "Keep unique_id formatted as Text in Excel."],
+    ),
+    "exam_questions": (
+        ["pool", "question_type", "question_text", "option_a", "option_b", "option_c", "option_d", "correct_option", "model_answer", "explanation", "marks", "sort_order"],
+        ["question_type must be mcq or descriptive.", "For mcq: question_text, option_a through option_d, and correct_option (A-D) are required.", "For descriptive: question_text is required; use model_answer if needed.", "pool is optional and will be created automatically."],
+    ),
+    "duty_teachers": (
+        ["teacher_id", "teacher_name", "mobile", "designation", "working_school", "udise_code", "working_block"],
+        ["Required columns: teacher_id, teacher_name, udise_code, working_block.", "All remaining columns are optional.", "Teacher IDs are used to update existing rows."],
+    ),
+    "duty_centers": (
+        ["center_name", "center_no", "center_block", "invigilators_required"],
+        ["All columns are required.", "invigilators_required must be a whole number of at least 1.", "Center numbers are used to update existing rows."],
+    ),
+}
+
+
+@admin_bp.route("/admin/import-templates/<template_name>.xlsx")
+def download_import_template(template_name):
+    if "admin" not in session:
+        return redirect(url_for("routes.login"))
+    template = IMPORT_TEMPLATES.get(template_name)
+    if not template:
+        return jsonify({"error": "Unknown import template."}), 404
+    output, filename = workbook_response(*template, filename=f"{template_name}_template.xlsx")
+    return send_file(output, as_attachment=True, download_name=filename,
+                     mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
 
 def duty_redirect(event_id, **params):
@@ -1045,11 +1079,10 @@ def import_exam_duty_teachers(event_id):
     if not upload or not upload.filename:
         return duty_redirect(event.id, teacher_import_error="missing_file")
     try:
-        frame = pd.read_csv(upload) if upload.filename.lower().endswith(".csv") else pd.read_excel(upload)
-    except Exception:
+        frame = read_import_file(upload)
+    except ValueError:
         return duty_redirect(event.id, teacher_import_error="invalid_file")
 
-    frame.columns = [str(column).strip().lower().replace(" ", "_") for column in frame.columns]
     created = updated = skipped = 0
     for _, row in frame.iterrows():
         teacher_id = row_value(row, "teacher_id", "teacherid", "staff_id", "employee_id")
@@ -1106,11 +1139,10 @@ def import_exam_duty_centers(event_id):
     if not upload or not upload.filename:
         return duty_redirect(event.id, center_import_error="missing_file")
     try:
-        frame = pd.read_csv(upload) if upload.filename.lower().endswith(".csv") else pd.read_excel(upload)
-    except Exception:
+        frame = read_import_file(upload)
+    except ValueError:
         return duty_redirect(event.id, center_import_error="invalid_file")
 
-    frame.columns = [str(column).strip().lower().replace(" ", "_") for column in frame.columns]
     created = updated = skipped = 0
     for _, row in frame.iterrows():
         center_name = row_value(row, "center_name", "exam_center_name", "name")
@@ -1233,11 +1265,10 @@ def import_event_participants(event_id):
         return redirect(url_for("admin.edit_event", id=event.id, participant_import_error="missing_file"))
 
     try:
-        frame = pd.read_csv(upload) if upload.filename.lower().endswith(".csv") else pd.read_excel(upload)
-    except Exception:
+        frame = read_import_file(upload)
+    except ValueError:
         return redirect(url_for("admin.edit_event", id=event.id, participant_import_error="invalid_file"))
 
-    frame.columns = [str(column).strip().lower().replace(" ", "_") for column in frame.columns]
     created = updated = skipped = 0
     for _, row in frame.iterrows():
         name = row_value(row, "name", "participant_name", "teacher_name", "student_name")
@@ -1292,20 +1323,11 @@ def import_exam_users(event_id):
     if not upload or not upload.filename:
         return redirect(url_for("admin.manage_event_exams", event_id=event.id, import_error="missing_file"))
 
-    filename = upload.filename.lower()
-
     try:
-        if filename.endswith(".csv"):
-            frame = pd.read_csv(upload)
-        else:
-            frame = pd.read_excel(upload)
-    except Exception:
+        frame = read_import_file(upload)
+    except ValueError:
         return redirect(url_for("admin.manage_event_exams", event_id=event.id, import_error="invalid_file"))
 
-    frame.columns = [
-        str(column).strip().lower().replace(" ", "_")
-        for column in frame.columns
-    ]
 
     created = 0
     updated = 0
@@ -1541,6 +1563,16 @@ def exams_dashboard():
 
     exam_options = exam_options_query.all()
     dashboard = build_exam_dashboard(selected_event_id, selected_exam_id)
+    download_log_query = db.session.query(
+        QuestionPaperDownloadLog, OnlineExam
+    ).join(OnlineExam, OnlineExam.id == QuestionPaperDownloadLog.exam_id)
+    if selected_event_id:
+        download_log_query = download_log_query.filter(OnlineExam.event_id == selected_event_id)
+    if selected_exam_id:
+        download_log_query = download_log_query.filter(OnlineExam.id == selected_exam_id)
+    question_paper_downloads = download_log_query.order_by(
+        QuestionPaperDownloadLog.download_datetime.desc()
+    ).all()
 
     return render_template(
         "admin/exams_dashboard.html",
@@ -1549,8 +1581,106 @@ def exams_dashboard():
         selected_event_id=selected_event_id,
         selected_exam_id=selected_exam_id,
         dashboard=dashboard,
+        question_paper_downloads=question_paper_downloads,
         online_exam_status=online_exam_status,
     )
+
+
+@admin_bp.route("/admin/question-paper-downloads/<int:log_id>/reset", methods=["POST"])
+def reset_question_paper_download(log_id):
+    if "admin" not in session:
+        return redirect(url_for("routes.login"))
+
+    download_log = QuestionPaperDownloadLog.query.get_or_404(log_id)
+    exam_id = download_log.exam_id
+    db.session.add(OfflineExamAuditLog(
+        exam_id=download_log.exam_id,
+        student_id=download_log.mentor_id,
+        action="question_paper_download_reset",
+        details=f"School UDISE: {download_log.school_udise}",
+        actor=str(session.get("admin") or "Admin"),
+    ))
+    db.session.delete(download_log)
+    db.session.commit()
+    if request.form.get("next") == "offline":
+        return redirect(url_for("admin.offline_exams_dashboard", exam_id=exam_id, download_reset=1))
+    return redirect(url_for("admin.exams_dashboard", exam_id=exam_id, download_reset=1))
+
+
+@admin_bp.route("/admin/offline-exams", methods=["GET", "POST"])
+def offline_exams_dashboard():
+    if "admin" not in session:
+        return redirect(url_for("routes.login"))
+
+    selected_exam_id = request.values.get("exam_id", type=int)
+    exams = OnlineExam.query.order_by(OnlineExam.created_at.desc(), OnlineExam.id.desc()).all()
+    selected_exam = db.session.get(OnlineExam, selected_exam_id) if selected_exam_id else None
+
+    if request.method == "POST":
+        offline_student_id = request.form.get("offline_student_id", type=int)
+        offline_student = db.session.get(OfflineExamStudent, offline_student_id)
+        if not offline_student or (selected_exam and offline_student.exam_id != selected_exam.id):
+            abort(404)
+
+        attendance = OfflineExamAttendance.query.filter_by(offline_exam_student_id=offline_student.id).first()
+        if request.form.get("action") == "attendance":
+            if not attendance:
+                attendance = OfflineExamAttendance(offline_exam_student_id=offline_student.id)
+                db.session.add(attendance)
+            attendance.attendance_status = request.form.get("attendance_status") == "present" and "present" or "absent"
+            attendance.marked_at = datetime.utcnow()
+            db.session.add(OfflineExamAuditLog(
+                exam_id=offline_student.exam_id, student_id=offline_student.student_id,
+                action="attendance_updated", details=attendance.attendance_status,
+                actor=str(session.get("admin") or "Admin"),
+            ))
+        elif request.form.get("action") in {"approve_marks", "reject_marks"}:
+            mark = OfflineExamMark.query.filter_by(exam_id=offline_student.exam_id, student_id=offline_student.student_id).first()
+            if not mark or mark.approval_status != "pending":
+                abort(400)
+            mark.approval_status = "approved" if request.form.get("action") == "approve_marks" else "rejected"
+            mark.approved_by = str(session.get("admin") or "Admin")
+            mark.approved_datetime = datetime.utcnow()
+            mark.approval_notes = request.form.get("approval_notes", "").strip()
+            offline_student.status = "marks_approved" if mark.approval_status == "approved" else "marks_rejected"
+            db.session.add(OfflineExamAuditLog(
+                exam_id=offline_student.exam_id, student_id=offline_student.student_id,
+                action=f"marks_{mark.approval_status}", details=mark.approval_notes,
+                actor=str(session.get("admin") or "Admin"),
+            ))
+        else:
+            abort(400)
+        db.session.commit()
+        return redirect(url_for("admin.offline_exams_dashboard", exam_id=offline_student.exam_id, updated=1))
+
+    students = []
+    attendance_by_student, marks_by_student = {}, {}
+    downloads = []
+    if selected_exam:
+        students = db.session.query(OfflineExamStudent, Student).join(
+            Student, Student.id == OfflineExamStudent.student_id
+        ).filter(OfflineExamStudent.exam_id == selected_exam.id).order_by(Student.student_name).all()
+        offline_ids = [offline.id for offline, _ in students]
+        student_ids = [student.id for _, student in students]
+        if offline_ids:
+            attendance_by_student = {
+                item.offline_exam_student_id: item
+                for item in OfflineExamAttendance.query.filter(OfflineExamAttendance.offline_exam_student_id.in_(offline_ids)).all()
+            }
+        if student_ids:
+            marks_by_student = {
+                item.student_id: item
+                for item in OfflineExamMark.query.filter_by(exam_id=selected_exam.id).filter(OfflineExamMark.student_id.in_(student_ids)).all()
+            }
+        downloads = db.session.query(QuestionPaperDownloadLog, OnlineExam).join(
+            OnlineExam, OnlineExam.id == QuestionPaperDownloadLog.exam_id
+        ).filter(QuestionPaperDownloadLog.exam_id == selected_exam.id).order_by(
+            QuestionPaperDownloadLog.download_datetime.desc()
+        ).all()
+
+    return render_template("admin/offline_exams.html", exams=exams, selected_exam=selected_exam,
+                           students=students, attendance_by_student=attendance_by_student,
+                           marks_by_student=marks_by_student, downloads=downloads)
 
 
 @admin_bp.route("/admin/events/<int:event_id>/exams", methods=["GET", "POST"])
@@ -1650,6 +1780,12 @@ def delete_exam_subject(subject_id):
 
     subject = ExamSubject.query.get_or_404(subject_id)
     event_id = subject.event_id
+    if subject.exams:
+        return redirect(url_for(
+            "admin.manage_event_exams",
+            event_id=event_id,
+            subject_delete_error="has_exams",
+        ))
     db.session.delete(subject)
     db.session.commit()
 
@@ -1915,13 +2051,31 @@ def exam_rank_list(exam_id):
     attempts = ExamAttempt.query.filter_by(
         exam_id=exam.id
     ).filter(ExamAttempt.status != "in_progress").order_by(ExamAttempt.score.desc(), ExamAttempt.submitted_at.asc()).all()
-
-    top_attempts = attempts[:10]
+    rows = [
+        {"name": attempt.participant.teacher_name if attempt.participant else "-",
+         "registration": attempt.participant.reg_id if attempt.participant else "-",
+         "score": attempt.score, "total_marks": attempt.total_marks,
+         "status": "Passed" if attempt.score >= exam.pass_mark else "Failed",
+         "mode": "Online", "submitted_at": attempt.submitted_at or attempt.started_at}
+        for attempt in attempts
+    ]
+    approved_offline_marks = db.session.query(OfflineExamMark, Student).join(
+        Student, Student.id == OfflineExamMark.student_id
+    ).filter(OfflineExamMark.exam_id == exam.id, OfflineExamMark.approval_status == "approved").all()
+    rows.extend(
+        {"name": student.student_name, "registration": student.registration_no,
+         "score": mark.obtained_marks, "total_marks": mark.max_marks,
+         "status": "Passed" if mark.result == "pass" else "Failed",
+         "mode": "Offline", "submitted_at": mark.approved_datetime or mark.submitted_datetime}
+        for mark, student in approved_offline_marks
+    )
+    rows.sort(key=lambda row: (-float(row["score"] or 0), row["submitted_at"] or datetime.max, row["name"]))
+    top_rows = rows[:10]
     return render_template(
         "admin/exam_rank_list.html",
         exam=exam,
-        attempts=attempts,
-        top_attempts=top_attempts
+        rows=rows,
+        top_rows=top_rows
     )
 
 
@@ -1934,16 +2088,28 @@ def import_exam_questions(exam_id):
     exam = OnlineExam.query.get_or_404(exam_id)
     file = request.files.get("question_file")
 
-    if file and file.filename:
-        dataframe = pd.read_excel(file)
-        for _, row in dataframe.fillna("").iterrows():
-            question_type = str(row.get("question_type", "mcq")).strip().lower() or "mcq"
-            question_text = str(row.get("question_text", "")).strip()
-            if not question_text:
+    if not file or not file.filename:
+        return redirect(url_for("admin.edit_online_exam", exam_id=exam.id, question_import_error="missing_file"))
+    try:
+        dataframe = read_import_file(file)
+    except ValueError:
+        return redirect(url_for("admin.edit_online_exam", exam_id=exam.id, question_import_error="invalid_file"))
+
+    created = skipped = 0
+    try:
+        for _, row in dataframe.iterrows():
+            question_type = row_value(row, "question_type").lower() or "mcq"
+            question_text = row_value(row, "question_text", "question")
+            correct_option = row_value(row, "correct_option", "answer").upper()
+            if question_type not in {"mcq", "descriptive"} or not question_text:
+                skipped += 1
+                continue
+            if question_type == "mcq" and (not all(row_value(row, option) for option in ("option_a", "option_b", "option_c", "option_d")) or correct_option not in {"A", "B", "C", "D"}):
+                skipped += 1
                 continue
 
             pool = None
-            pool_name = str(row.get("pool", row.get("pool_name", ""))).strip()
+            pool_name = row_value(row, "pool", "pool_name")
             if pool_name:
                 pool = ExamQuestionPool.query.filter_by(exam_id=exam.id, name=pool_name).first()
                 if not pool:
@@ -1957,22 +2123,23 @@ def import_exam_questions(exam_id):
                     pool_id=pool.id if pool else None,
                     question_type=question_type,
                     question_text=question_text,
-                    option_a=str(row.get("option_a", "")).strip(),
-                    option_b=str(row.get("option_b", "")).strip(),
-                    option_c=str(row.get("option_c", "")).strip(),
-                    option_d=str(row.get("option_d", "")).strip(),
-                    correct_option=str(row.get("correct_option", "")).strip().upper(),
-                    model_answer=str(row.get("model_answer", "")).strip(),
-                    explanation=str(row.get("explanation", "")).strip(),
-                    marks=float(row.get("marks", exam.marks_per_question or 1) or 1),
-                    sort_order=int(row.get("sort_order", 0) or 0),
+                    option_a=row_value(row, "option_a"), option_b=row_value(row, "option_b"),
+                    option_c=row_value(row, "option_c"), option_d=row_value(row, "option_d"),
+                    correct_option=correct_option, model_answer=row_value(row, "model_answer"),
+                    explanation=row_value(row, "explanation"),
+                    marks=float(row_value(row, "marks") or exam.marks_per_question or 1),
+                    sort_order=int(float(row_value(row, "sort_order") or 0)),
                     is_active=True,
                 )
             )
+            created += 1
 
         db.session.commit()
+    except (TypeError, ValueError):
+        db.session.rollback()
+        return redirect(url_for("admin.edit_online_exam", exam_id=exam.id, question_import_error="invalid_data"))
 
-    return redirect(url_for("admin.edit_online_exam", exam_id=exam.id))
+    return redirect(url_for("admin.edit_online_exam", exam_id=exam.id, question_import_created=created, question_import_skipped=skipped))
 
 
 @admin_bp.route("/admin/events/<int:event_id>/fields", methods=["POST"])

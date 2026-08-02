@@ -5,6 +5,9 @@
 {% block content %}
 <div class="row g-4">
     <div class="col-lg-4">
+        {% if request.args.get('subject_delete_error') == 'has_exams' %}
+        <div class="alert alert-warning">This subject cannot be deleted because it still contains exam records. Delete or archive its exams first.</div>
+        {% endif %}
         {% if request.args.get("import_created") is not none %}
         <div class="alert alert-success">
             Exam users imported:
@@ -33,6 +36,7 @@
                         The unique ID can be a mobile number, roll number, or admin-issued number.
                         Optional: <code>email</code>, <code>school_name</code>, <code>designation</code>.
                     </div>
+                    <a class="btn btn-link btn-sm mb-2 px-0" href="{{ url_for('admin.download_import_template', template_name='exam_users') }}">Download Excel template</a>
                     <button class="btn btn-warning w-100">Upload Exam Users</button>
                 </form>
             </div>

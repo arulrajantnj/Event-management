@@ -35,16 +35,14 @@
                     <div class="event-meta mb-3">
                         <span>{% if event.registration_type == "no_registration" %}Registration not required{% else %}Active on public portal{% endif %}</span>
                     </div>
-                    {% if event.registration_type == "no_registration" %}
                     {% if event.exam_enabled %}
                     <a href="{{ url_for('routes.exam_login') }}" class="btn btn-primary rounded-pill">
                         Open Exam Portal
                     </a>
-                    {% else %}
+                    {% elif event.registration_type == "no_registration" %}
                     <span class="btn btn-outline-secondary rounded-pill disabled">
                         Service Available
                     </span>
-                    {% endif %}
                     {% else %}
                     <a href="{{ url_for('routes.register', event=event.slug) }}" class="btn btn-primary rounded-pill">
                         Register for Event

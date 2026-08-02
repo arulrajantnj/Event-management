@@ -105,12 +105,14 @@
         <div class="card mb-4">
             <div class="card-header bg-info text-white">Import Questions from Excel</div>
             <div class="card-body">
+                {% if request.args.get('question_import_created') is not none %}<div class="alert alert-success">Questions imported: {{ request.args.get('question_import_created', 0) }} created, {{ request.args.get('question_import_skipped', 0) }} skipped.</div>{% elif request.args.get('question_import_error') %}<div class="alert alert-danger">Could not import questions. Use the template and ensure required fields are complete.</div>{% endif %}
                 <form method="POST" enctype="multipart/form-data" action="{{ url_for('admin.import_exam_questions', exam_id=exam.id) }}">
                     <div class="mb-3">
                         <label class="form-label">Excel File</label>
-                        <input type="file" name="question_file" class="form-control" accept=".xlsx,.xls" required>
+                        <input type="file" name="question_file" class="form-control" accept=".xlsx,.xls,.csv" required>
                         <small class="text-muted">Columns: pool, question_type, question_text, option_a, option_b, option_c, option_d, correct_option, model_answer, explanation, marks, sort_order</small>
                     </div>
+                    <a class="btn btn-link btn-sm mb-2 px-0" href="{{ url_for('admin.download_import_template', template_name='exam_questions') }}">Download Excel template</a>
                     <button class="btn btn-info text-white w-100">Import Questions</button>
                 </form>
             </div>

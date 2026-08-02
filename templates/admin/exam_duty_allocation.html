@@ -25,7 +25,8 @@
 <div class="col-lg-4">
     <div class="card mb-4"><div class="card-header bg-primary text-white">Import Teacher Data</div><div class="card-body">
         <form method="POST" action="{{ url_for('admin.import_exam_duty_teachers', event_id=event.id) }}" enctype="multipart/form-data">
-            <input type="file" name="teachers_file" class="form-control mb-3" accept=".xlsx,.xls,.csv" required>
+            <input type="file" name="teachers_file" class="form-control mb-2" accept=".xlsx,.xls,.csv" required>
+            <a class="btn btn-link btn-sm mb-2 px-0" href="{{ url_for('admin.download_import_template', template_name='duty_teachers') }}">Download Excel template</a>
             <p class="small text-muted">Required columns: <code>teacher_id</code>, <code>teacher_name</code>, <code>udise_code</code>, <code>working_block</code>. Optional: <code>working_school</code>, <code>designation</code>, <code>mobile</code>.</p>
             <button class="btn btn-primary w-100">Import Teachers</button>
         </form>
@@ -41,7 +42,8 @@
     </div></div>
     <div class="card mb-4"><div class="card-header bg-success text-white">Import Exam Centers</div><div class="card-body">
         <form method="POST" action="{{ url_for('admin.import_exam_duty_centers', event_id=event.id) }}" enctype="multipart/form-data">
-            <input type="file" name="centers_file" class="form-control mb-3" accept=".xlsx,.xls,.csv" required>
+            <input type="file" name="centers_file" class="form-control mb-2" accept=".xlsx,.xls,.csv" required>
+            <a class="btn btn-link btn-sm mb-2 px-0" href="{{ url_for('admin.download_import_template', template_name='duty_centers') }}">Download Excel template</a>
             <p class="small text-muted">Required columns: <code>center_name</code>, <code>center_no</code>, <code>center_block</code>, <code>invigilators_required</code>.</p>
             <button class="btn btn-outline-success w-100">Import Centers</button>
         </form>

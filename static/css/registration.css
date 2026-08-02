@@ -1,0 +1,1 @@
+.registration-page .card { border-radius: 1rem; } .registration-page .form-control, .registration-page .form-select { min-height: 44px; } @media (max-width: 576px) { .registration-page { padding-top: 1.5rem !important; } }

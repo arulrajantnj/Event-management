@@ -325,6 +325,21 @@
         Manage Events
     </a>
 
+    <a href="{{ url_for('admin_student.students') }}">
+        <i class="fa-solid fa-user-graduate"></i>
+        Student Approval
+    </a>
+
+    <a href="{{ url_for('admin_student.registration_settings') }}">
+        <i class="fa-solid fa-sliders"></i>
+        Registration Settings
+    </a>
+
+    <a href="{{ url_for('admin_student.custom_questions') }}">
+        <i class="fa-solid fa-list-check"></i>
+        Custom Questions
+    </a>
+
     <a href="/admin/promotions">
         <i class="fa-solid fa-images"></i>
         Homepage Promotions
@@ -353,6 +368,11 @@
     <a href="/admin/exams">
         <i class="fa-solid fa-laptop-file"></i>
         Online Exams
+    </a>
+
+    <a href="{{ url_for('admin.offline_exams_dashboard') }}">
+        <i class="fa-solid fa-file-pen"></i>
+        Offline Exams
     </a>
 
     <a href="/admin/exam-duty-allocation">

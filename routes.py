@@ -30,8 +30,11 @@ from models import (
     CompetitionRegistration,
 )
 from certificate_generator import generate_certificate, get_active_template
+from offline_exam_models import OfflineExamMark
+from student_models import Student
 
 from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 import hashlib
 import hmac
 import qrcode
@@ -168,7 +171,7 @@ def home():
             "font_size": event.title_font_size,
             "url": (
                 url_for("routes.exam_login")
-                if event.registration_type == "no_registration" and event.exam_enabled
+                if event.exam_enabled
                 else url_for("routes.register", event=event.slug)
             ),
             "kind": "event",
@@ -186,7 +189,7 @@ def home():
             "font_family": event.marquee_font_family,
             "font_color": event.marquee_font_color,
             "font_size": event.marquee_font_size,
-            "url": url_for("routes.register", event=event.slug),
+            "url": url_for("routes.exam_login") if event.exam_enabled else url_for("routes.register", event=event.slug),
         }
         for event in events
     ]
@@ -254,15 +257,42 @@ def public_competition_results():
             CompetitionRegistration.score.desc(),
             CompetitionRegistration.participant_name,
         ).all()
-    exam_attempts = []
+    exam_results = []
     if selected_exam:
-        exam_attempts = ExamAttempt.query.filter_by(exam_id=selected_exam.id).filter(
+        online_attempts = ExamAttempt.query.filter_by(exam_id=selected_exam.id).filter(
             ExamAttempt.evaluation_status == "evaluated"
         ).order_by(ExamAttempt.score.desc(), ExamAttempt.submitted_at.asc()).all()
+        exam_results = [
+            {
+                "name": attempt.participant.teacher_name if attempt.participant else "-",
+                "registration_no": attempt.participant.reg_id if attempt.participant else "-",
+                "score": attempt.score,
+                "total_marks": attempt.total_marks,
+                "mode": "Online",
+                "submitted_at": attempt.submitted_at or attempt.started_at,
+            }
+            for attempt in online_attempts
+        ]
+        approved_offline_marks = db.session.query(OfflineExamMark, Student).join(
+            Student, Student.id == OfflineExamMark.student_id
+        ).filter(OfflineExamMark.exam_id == selected_exam.id,
+                 OfflineExamMark.approval_status == "approved").all()
+        exam_results.extend(
+            {
+                "name": student.student_name,
+                "registration_no": student.registration_no,
+                "score": mark.obtained_marks,
+                "total_marks": mark.max_marks,
+                "mode": "Offline",
+                "submitted_at": mark.approved_datetime or mark.submitted_datetime,
+            }
+            for mark, student in approved_offline_marks
+        )
+        exam_results.sort(key=lambda row: (-float(row["score"] or 0), row["submitted_at"] or datetime.max, row["name"]))
     return render_template(
         "competition_results.html", competitions=competitions, selected=selected,
         results=results, public_exams=public_exams, selected_exam=selected_exam,
-        exam_attempts=exam_attempts,
+        exam_results=exam_results,
     )
 
 
@@ -741,8 +771,13 @@ def current_exam_participant():
     return Participant.query.get(participant_id)
 
 
+def exam_now():
+    """Return the local time used by the exam schedule and stored attempts."""
+    return datetime.now(ZoneInfo("Asia/Kolkata")).replace(tzinfo=None)
+
+
 def exam_time_status(exam):
-    now = datetime.utcnow()
+    now = exam_now()
     if exam.start_at and now < exam.start_at:
         return "upcoming"
     if exam.end_at and now > exam.end_at:
@@ -834,7 +869,7 @@ def select_attempt_questions(exam):
 
 
 def create_in_progress_attempt(exam, participant):
-    now = datetime.utcnow()
+    now = exam_now()
     questions = select_attempt_questions(exam)
     question_ids = [question.id for question in questions]
     option_orders = {}
@@ -910,7 +945,7 @@ def save_attempt_answer(attempt, question_id, value, marked_for_review=None):
             if isinstance(marked_for_review, bool)
             else str(marked_for_review).strip().lower() in {"1", "true", "yes", "on"}
         )
-    answer.saved_at = datetime.utcnow()
+    answer.saved_at = exam_now()
     attempt.last_saved_at = answer.saved_at
     return answer
 
@@ -944,7 +979,7 @@ def finalize_attempt(attempt, violation_count=None):
         attempt.violation_count = max(attempt.violation_count or 0, int(violation_count or 0))
     attempt.answers_json = json.dumps(answers_map)
     attempt.status = "submitted"
-    attempt.submitted_at = datetime.utcnow()
+    attempt.submitted_at = exam_now()
     attempt.last_saved_at = attempt.submitted_at
     recalculate_attempt_scores(attempt)
     db.session.commit()
@@ -1830,7 +1865,7 @@ def my_exams():
     all_attempts = ExamAttempt.query.filter_by(participant_id=participant.id).order_by(
         ExamAttempt.started_at.desc()
     ).all()
-    now = datetime.utcnow()
+    now = exam_now()
     for attempt in all_attempts:
         if attempt.status == "in_progress" and attempt.deadline_at and now >= attempt.deadline_at:
             finalize_attempt(attempt)
@@ -1869,7 +1904,7 @@ def take_exam(exam_id):
         return redirect(url_for("routes.my_exams"))
 
     attempt = current_in_progress_attempt(exam, participant)
-    now = datetime.utcnow()
+    now = exam_now()
     if attempt and (
         (attempt.deadline_at and now >= attempt.deadline_at)
         or (exam.end_at and now >= exam.end_at)
@@ -1949,7 +1984,7 @@ def submit_exam(exam_id):
     if attempt.status != "in_progress":
         return redirect(url_for("routes.exam_result", attempt_id=attempt.id))
 
-    now = datetime.utcnow()
+    now = exam_now()
     if (attempt.deadline_at and now >= attempt.deadline_at) or (exam.end_at and now >= exam.end_at):
         finalize_attempt(attempt)
         return redirect(url_for("routes.exam_result", attempt_id=attempt.id))
@@ -1980,7 +2015,7 @@ def autosave_exam_answer(exam_id, attempt_id):
         return jsonify({"error": "Unauthorized attempt."}), 403
     if attempt.status != "in_progress":
         return jsonify({"status": "submitted", "result_url": url_for("routes.exam_result", attempt_id=attempt.id)})
-    now = datetime.utcnow()
+    now = exam_now()
     if (attempt.deadline_at and now >= attempt.deadline_at) or (attempt.exam.end_at and now >= attempt.exam.end_at):
         finalize_attempt(attempt)
         return jsonify({"status": "submitted", "result_url": url_for("routes.exam_result", attempt_id=attempt.id)})

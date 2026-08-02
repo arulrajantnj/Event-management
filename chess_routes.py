@@ -10,6 +10,7 @@ from reportlab.pdfgen import canvas
 from reportlab.lib.utils import ImageReader
 from werkzeug.security import check_password_hash, generate_password_hash
 from extensions import limiter
+from excel_imports import read_import_file, value_from_row, workbook_response
 from models import (db, ChessAgeGroup, ChessAnnouncement, ChessAuditLog, ChessOrbiter,
                     ChessPairing, ChessParticipant, ChessRoom, ChessRoomAssignment,
                     ChessRound, ChessStanding, ChessTournament, ChessApiToken, ChessCertificate,
@@ -258,20 +259,31 @@ def import_participants(age_group_id):
     upload = request.files.get("file")
     if not upload: return redirect(url_for("chess.admin_age_group", age_group_id=group.id))
     try:
-        frame = pd.read_excel(upload) if upload.filename.lower().endswith((".xlsx", ".xls")) else pd.read_csv(upload)
-        frame.columns = [str(column).strip().lower().replace(" ", "_") for column in frame.columns]
+        frame = read_import_file(upload)
         if "name" not in frame.columns: raise ValueError("name column is required")
         next_number = ChessParticipant.query.filter_by(age_group_id=group.id).count() + 1
-        for _, row in frame.fillna("").iterrows():
-            name = str(row.get("name", "")).strip()
+        for _, row in frame.iterrows():
+            name = value_from_row(row, "name", "player_name")
             if not name: continue
-            code = str(row.get("player_code", "")).strip() or f"CH{group.id}-{next_number:05d}"; next_number += 1
+            code = value_from_row(row, "player_code") or f"CH{group.id}-{next_number:05d}"; next_number += 1
             if ChessParticipant.query.filter_by(age_group_id=group.id, player_code=code).first(): continue
-            db.session.add(ChessParticipant(age_group_id=group.id, player_code=code, name=name, fide_id=str(row.get("fide_id", "")), gender=str(row.get("gender", "")), district=str(row.get("district", "")), state=str(row.get("state", "")), school=str(row.get("school", "")), club=str(row.get("club", "")), mobile=str(row.get("phone", row.get("mobile", ""))), email=str(row.get("email", "")), status=str(row.get("status", "pending")).lower(), checked_in=str(row.get("checked_in", "")).lower() in {"1", "true", "yes"}))
+            status = value_from_row(row, "status").lower() or "pending"
+            db.session.add(ChessParticipant(age_group_id=group.id, player_code=code, name=name, fide_id=value_from_row(row, "fide_id"), gender=value_from_row(row, "gender"), district=value_from_row(row, "district"), state=value_from_row(row, "state"), school=value_from_row(row, "school"), club=value_from_row(row, "club"), mobile=value_from_row(row, "phone", "mobile"), email=value_from_row(row, "email"), status=status, checked_in=value_from_row(row, "checked_in").lower() in {"1", "true", "yes"}))
         audit(group.tournament_id, "participants_imported", "age_group", group.id, upload.filename); db.session.commit()
     except Exception as error:
         db.session.rollback(); current_app.logger.warning("Chess import rejected: %s", error)
     return redirect(url_for("chess.admin_age_group", age_group_id=group.id))
+
+
+@chess_bp.route("/admin/chess/age-groups/<int:age_group_id>/participants/template.xlsx")
+def participant_import_template(age_group_id):
+    group = ChessAgeGroup.query.get_or_404(age_group_id)
+    if not staff_for_tournament(group.tournament_id, group.id, {"tournament_admin", "age_group_admin"}): abort(403)
+    columns = ["player_code", "name", "fide_id", "gender", "district", "state", "school", "club", "mobile", "email", "status", "checked_in"]
+    instructions = ["Required column: name.", "player_code is optional; one is generated when blank.", "status may be pending, verified, or withdrawn.", "checked_in accepts yes/no, true/false, or 1/0.", "Keep FIDE ID and mobile formatted as Text in Excel."]
+    output, filename = workbook_response(columns, instructions, "chess_participants_template.xlsx")
+    return send_file(output, as_attachment=True, download_name=filename,
+                     mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
 
 @chess_bp.route("/admin/chess/age-groups/<int:age_group_id>/export.xlsx")

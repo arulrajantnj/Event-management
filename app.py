@@ -17,6 +17,11 @@ from attendance_routes import attendance_bp
 from admin_routes import admin_bp
 from layout_editor import layout_bp
 from chess_routes import chess_bp
+from student_registration import student_registration_bp
+from admin_student import admin_student_bp
+import student_models  # Registers the separate student-registration tables with SQLAlchemy.
+from offline_exam_routes import offline_exam_bp
+import offline_exam_models  # Registers the independent hybrid-exam tables.
 
 # ==========================
 # Create Flask App
@@ -98,6 +103,9 @@ app.register_blueprint(attendance_bp)
 app.register_blueprint(admin_bp)
 app.register_blueprint(layout_bp)
 app.register_blueprint(chess_bp)
+app.register_blueprint(student_registration_bp)
+app.register_blueprint(admin_student_bp)
+app.register_blueprint(offline_exam_bp)
 install_security_hooks(app)
 
 
