@@ -32,9 +32,10 @@
                         <input type="file" name="exam_users_file" class="form-control" accept=".xlsx,.xls,.csv" required>
                     </div>
                     <div class="small text-muted mb-3">
-                        Required columns: <code>username</code>, <code>password</code>, <code>name</code>, and <code>unique_id</code>.
-                        The unique ID can be a mobile number, roll number, or admin-issued number.
-                        Optional: <code>email</code>, <code>school_name</code>, <code>designation</code>.
+                        This template matches Student Registration. Required columns: <code>student_name</code>,
+                        <code>student_class</code>, <code>section</code>, <code>emis_no</code>, <code>udise_no</code>,
+                        <code>school_name</code>, <code>mobile</code>, <code>medium</code>, <code>username</code>, and <code>password</code>.
+                        Active custom registration questions are included as additional columns in the downloaded template.
                     </div>
                     <a class="btn btn-link btn-sm mb-2 px-0" href="{{ url_for('admin.download_import_template', template_name='exam_users') }}">Download Excel template</a>
                     <button class="btn btn-warning w-100">Upload Exam Users</button>

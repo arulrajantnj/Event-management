@@ -40,7 +40,7 @@ from excel_imports import read_import_file, value_from_row, workbook_response
 from offline_exam_models import (OfflineExamAttendance, OfflineExamAuditLog,
                                  OfflineExamMark, OfflineExamStudent,
                                  QuestionPaperDownloadLog)
-from student_models import Student
+from student_models import CustomRegistrationQuestion, Student
 
 
 admin_bp = Blueprint("admin", __name__)
@@ -1011,8 +1011,8 @@ IMPORT_TEMPLATES = {
         ["Required columns: name, mobile.", "All remaining columns are optional.", "Keep mobile numbers formatted as Text in Excel to preserve leading zeroes."],
     ),
     "exam_users": (
-        ["username", "password", "name", "unique_id", "email", "designation", "subject", "school_name", "school_area", "block"],
-        ["Required columns: username, password, name, unique_id.", "unique_id may be a mobile number, roll number, or administrator-issued number.", "Keep unique_id formatted as Text in Excel."],
+        ["student_name", "student_class", "section", "emis_no", "udise_no", "school_name", "mobile", "medium", "username", "password"],
+        ["This template matches the Student Registration form.", "All columns are required.", "EMIS number, mobile number, and username must be unique. Keep EMIS and mobile numbers formatted as Text in Excel."],
     ),
     "exam_questions": (
         ["pool", "question_type", "question_text", "option_a", "option_b", "option_c", "option_d", "correct_option", "model_answer", "explanation", "marks", "sort_order"],
@@ -1029,11 +1029,35 @@ IMPORT_TEMPLATES = {
 }
 
 
+def active_exam_user_custom_questions():
+    standard_columns = set(IMPORT_TEMPLATES["exam_users"][0])
+    return [
+        question
+        for question in CustomRegistrationQuestion.query.filter_by(is_active=True).order_by(
+            CustomRegistrationQuestion.sort_order,
+            CustomRegistrationQuestion.id,
+        ).all()
+        if question.field_name not in standard_columns
+    ]
+
+
+def exam_user_import_template():
+    columns, instructions = IMPORT_TEMPLATES["exam_users"]
+    custom_questions = active_exam_user_custom_questions()
+    custom_columns = [question.field_name for question in custom_questions]
+    custom_instructions = [
+        f"Custom field: {question.field_name} ({question.label})"
+        + (" — required." if question.required else " — optional.")
+        for question in custom_questions
+    ]
+    return columns + custom_columns, instructions + custom_instructions
+
+
 @admin_bp.route("/admin/import-templates/<template_name>.xlsx")
 def download_import_template(template_name):
     if "admin" not in session:
         return redirect(url_for("routes.login"))
-    template = IMPORT_TEMPLATES.get(template_name)
+    template = exam_user_import_template() if template_name == "exam_users" else IMPORT_TEMPLATES.get(template_name)
     if not template:
         return jsonify({"error": "Unknown import template."}), 404
     output, filename = workbook_response(*template, filename=f"{template_name}_template.xlsx")
@@ -1332,40 +1356,70 @@ def import_exam_users(event_id):
     created = 0
     updated = 0
     skipped = 0
+    custom_questions = active_exam_user_custom_questions()
 
     for _, row in frame.iterrows():
         username = row_value(row, "username", "user_name", "exam_username", "login_username")
         password = row_value(row, "password", "exam_password", "login_password")
-        name = row_value(row, "name", "participant_name", "teacher_name", "student_name")
-        unique_id = row_value(
-            row,
-            "unique_id",
-            "admin_number",
-            "admin_id",
-            "id_number",
-            "roll_no",
-            "roll_number",
-            "mobile",
-            "mobile_number",
-            "phone"
-        )
+        name = row_value(row, "student_name", "name", "participant_name", "teacher_name")
+        student_class = row_value(row, "student_class", "class")
+        section = row_value(row, "section")
+        emis_no = row_value(row, "emis_no", "emis", "unique_id", "admin_number", "admin_id", "id_number", "roll_no", "roll_number")
+        udise_no = row_value(row, "udise_no", "udise")
+        school_name = row_value(row, "school_name", "school", "organization")
+        mobile = row_value(row, "mobile", "mobile_number", "phone")
+        medium = row_value(row, "medium")
+        registration_values = {
+            "student_name": name,
+            "student_class": student_class,
+            "section": section,
+            "emis_no": emis_no,
+            "udise_no": udise_no,
+            "school_name": school_name,
+            "mobile": mobile,
+            "medium": medium,
+        }
+        custom_answers = {
+            question.field_name: row_value(row, question.field_name)
+            for question in custom_questions
+        }
 
-        if not username or not password or not name or not unique_id:
+        if (
+            not username
+            or not password
+            or not all(registration_values.values())
+            or any(question.required and not custom_answers[question.field_name] for question in custom_questions)
+        ):
             skipped += 1
             continue
+
+        extra_data = {
+            field_name: {"label": field_name.replace("_", " ").title(), "value": value}
+            for field_name, value in registration_values.items()
+        }
+        extra_data.update({
+            question.field_name: {"label": question.label, "value": custom_answers[question.field_name]}
+            for question in custom_questions
+        })
 
         participant = Participant.query.filter_by(
             exam_username=username
         ).first()
 
-        if participant and participant.event_id != event.id:
+        if (participant and participant.event_id != event.id) or Student.query.filter_by(username=username).first():
             skipped += 1
             continue
 
         if not participant:
             participant = Participant.query.filter_by(
                 event_id=event.id,
-                mobile=unique_id
+                mobile=mobile
+            ).first()
+
+        if not participant:
+            participant = Participant.query.filter_by(
+                event_id=event.id,
+                mobile=emis_no
             ).first()
 
         if not participant:
@@ -1376,26 +1430,26 @@ def import_exam_users(event_id):
                 event_id=event.id,
                 salutation="",
                 teacher_name=name,
-                mobile=unique_id,
+                mobile=mobile,
                 email=email,
-                designation=row_value(row, "designation") or "Exam User",
+                designation=row_value(row, "designation") or "Student",
                 subject=row_value(row, "subject") or "Exam",
-                school_name=row_value(row, "school_name", "school", "organization") or "Exam User",
-                school_area=row_value(row, "school_area", "area", "place") or "Exam User",
+                school_name=school_name,
+                school_area=row_value(row, "school_area", "area", "place") or udise_no,
                 block=row_value(row, "block") or "Exam",
                 photo="",
-                extra_data=json.dumps({
-                    "exam_unique_id": {
-                        "label": "Exam Unique ID",
-                        "value": unique_id
-                    }
-                }),
+                extra_data=json.dumps(extra_data),
             )
             db.session.add(participant)
             created += 1
         else:
             updated += 1
-            participant.teacher_name = name or participant.teacher_name
+            participant.teacher_name = name
+            participant.mobile = mobile
+            participant.school_name = school_name
+            participant.school_area = row_value(row, "school_area", "area", "place") or udise_no
+            participant.designation = row_value(row, "designation") or "Student"
+            participant.extra_data = json.dumps(extra_data)
 
         participant.exam_username = username
         participant.exam_password_hash = generate_password_hash(password)

@@ -78,6 +78,14 @@ body{
     margin:0 auto 18px;
 }
 .registration-sponsor-logo,.registration-sponsor-banner{max-width:100%;object-fit:contain;border-radius:10px;background:#fff;padding:3px;}
+.registration-sponsor.position-left{justify-content:flex-start;}
+.registration-sponsor.position-center{justify-content:center;}
+.registration-sponsor.position-right{justify-content:flex-end;}
+.registration-sponsor-logo.fit-cover,.registration-sponsor-banner.fit-cover{object-fit:cover;}
+.registration-sponsor-logo.fit-fill,.registration-sponsor-banner.fit-fill{object-fit:fill;}
+.registration-sponsor-logo.fit-none,.registration-sponsor-banner.fit-none{object-fit:none;}
+.registration-sponsor-logo.fit-scale-down,.registration-sponsor-banner.fit-scale-down{object-fit:scale-down;}
+.registration-instructions{white-space:pre-line;}
 
 .card-body{
     background:#fff;
@@ -323,10 +331,10 @@ body{
 <div class="header-banner">
 
 {% if selected_event and selected_event.show_registration_sponsor and (selected_event.sponsor_brand or selected_event.sponsor_logo or selected_event.sponsor_image) %}
-<div class="registration-sponsor" style="justify-content:{{ {'left':'flex-start','center':'center','right':'flex-end'}.get(selected_event.sponsor_logo_position or 'center', 'center') }};">
-    {% if selected_event.sponsor_logo %}<img class="registration-sponsor-logo" src="{{ url_for('static', filename='sponsors/' + selected_event.sponsor_logo) }}" alt="Sponsor logo" style="width:{{ selected_event.sponsor_logo_width or 160 }}px;height:{{ selected_event.sponsor_logo_height or 90 }}px;object-fit:{{ selected_event.sponsor_image_fit or 'contain' }};">{% endif %}
+<div class="registration-sponsor position-{{ selected_event.sponsor_logo_position or 'center' }}">
+    {% if selected_event.sponsor_logo %}<img class="registration-sponsor-logo fit-{{ selected_event.sponsor_image_fit or 'contain' }}" src="{{ url_for('static', filename='sponsors/' + selected_event.sponsor_logo) }}" alt="Sponsor logo" width="{{ selected_event.sponsor_logo_width or 160 }}" height="{{ selected_event.sponsor_logo_height or 90 }}">{% endif %}
     {% if selected_event.sponsor_brand %}<strong>{{ selected_event.sponsor_brand }}</strong>{% endif %}
-    {% if selected_event.sponsor_image %}<img class="registration-sponsor-banner" src="{{ url_for('static', filename='sponsors/' + selected_event.sponsor_image) }}" alt="Sponsor or owner banner" style="width:{{ selected_event.sponsor_banner_width or 520 }}px;height:{{ selected_event.sponsor_banner_height or 170 }}px;object-fit:{{ selected_event.sponsor_image_fit or 'contain' }};">{% endif %}
+    {% if selected_event.sponsor_image %}<img class="registration-sponsor-banner fit-{{ selected_event.sponsor_image_fit or 'contain' }}" src="{{ url_for('static', filename='sponsors/' + selected_event.sponsor_image) }}" alt="Sponsor or owner banner" width="{{ selected_event.sponsor_banner_width or 520 }}" height="{{ selected_event.sponsor_banner_height or 170 }}">{% endif %}
 </div>
 {% endif %}
 
@@ -339,7 +347,7 @@ body{
     </div>
 </div>
 
-<h1{% if selected_event %} style='font-family: {{ selected_event.registration_font_family|default("Poppins", true)|tojson }}, sans-serif; color: {{ selected_event.registration_font_color|default("#0d6efd", true) }};{% if selected_event.registration_font_size|default(0)|int > 0 %} font-size: {{ selected_event.registration_font_size|int }}px;{% endif %}'{% endif %}>
+<h1 class="registration-heading"{% if selected_event %} data-registration-typography data-font-family="{{ selected_event.registration_font_family|default('Poppins', true) }}" data-font-color="{{ selected_event.registration_font_color|default('#0d6efd', true) }}" data-font-size="{{ selected_event.registration_font_size|default(0)|int }}"{% endif %}>
 {% if selected_event %}
 {{ selected_event.registration_header if selected_event.show_registration_header and selected_event.registration_header else selected_event.name }}
 {% else %}
@@ -366,7 +374,7 @@ Event Registration
 {% if selected_event and selected_event.show_registration_instructions and selected_event.registration_instructions %}
 <div class="alert alert-info mb-4">
     <strong><i class="fa-solid fa-circle-info"></i> Instructions</strong>
-    <div class="mt-2" style="white-space: pre-line; font-family: {{ selected_event.registration_font_family|default("Poppins", true)|tojson }}, sans-serif; color: {{ selected_event.registration_font_color|default("#0d6efd", true) }};{% if selected_event.registration_font_size|default(0)|int > 0 %} font-size: {{ selected_event.registration_font_size|int }}px;{% endif %}">{{ selected_event.registration_instructions }}</div>
+    <div class="mt-2 registration-instructions" data-registration-typography data-font-family="{{ selected_event.registration_font_family|default('Poppins', true) }}" data-font-color="{{ selected_event.registration_font_color|default('#0d6efd', true) }}" data-font-size="{{ selected_event.registration_font_size|default(0)|int }}">{{ selected_event.registration_instructions }}</div>
 </div>
 {% endif %}
 
@@ -542,7 +550,7 @@ Declaration
 <div class="form-check">
 <input class="form-check-input" type="checkbox" id="declaration" required>
 <label class="form-check-label" for="declaration">
-I hereby declare that the information furnished above is true and correct. I understand that any incorrect information may lead to rejection of my registration.
+நான் மேலே அளித்த அனைத்து தகவல்களும் உண்மையானவை என உறுதி அளிக்கிறேன், மேலும் எந்த தவறான தகவலும் மற்றும் புகைப்படமும் வழங்கப்படவில்லை எனவும் அவ்வாறு வழங்குவது என்னை சட்ட நடவடிக்கைக்கு உட்படுத்தும் என்பதை நான் அறிவேன் உறுதிபட ஏற்றுக்கொள்கிறேன்.
 </label>
 </div>
 </div>
@@ -599,6 +607,13 @@ Home
 const eventSelect = document.getElementById("event_slug");
 const photoInput = document.getElementById("photo");
 const previewImage = document.getElementById("preview");
+
+document.querySelectorAll("[data-registration-typography]").forEach((element) => {
+    const { fontFamily, fontColor, fontSize } = element.dataset;
+    if (fontFamily) element.style.fontFamily = `${fontFamily}, sans-serif`;
+    if (fontColor) element.style.color = fontColor;
+    if (Number(fontSize) > 0) element.style.fontSize = `${fontSize}px`;
+});
 
 if (eventSelect) {
     eventSelect.addEventListener("change", function() {

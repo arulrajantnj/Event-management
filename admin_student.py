@@ -134,7 +134,7 @@ def export_students():
     questions = CustomRegistrationQuestion.query.order_by(CustomRegistrationQuestion.sort_order).all()
     rows = []
     for student in Student.query.order_by(Student.registration_date.desc()).all():
-        row = {"Registration No": student.registration_no, "Student Name": student.student_name, "Class": student.student_class, "Section": student.section, "EMIS No": student.emis_no, "UDISE No": student.udise_no, "School Name": student.school_name, "Mobile": student.mobile, "Medium": student.medium, "Username": student.username, "Status": student.approval_status, "Registration Date": student.registration_date}
+        row = {"Registration No": student.registration_no, "Student Name": student.student_name, "Class": student.student_class, "Section": student.section, "EMIS No": student.emis_no, "UDISE No": student.udise_no, "School Name": student.school_name, "Block": student.school_block, "Management": student.school_management, "Mobile": student.mobile, "Medium": student.medium, "Username": student.username, "Status": student.approval_status, "Registration Date": student.registration_date}
         answer_map = {answer.question_id: answer.value for answer in student.answers}
         row.update({question.label: answer_map.get(question.id, "") for question in questions}); rows.append(row)
     output = BytesIO(); pd.DataFrame(rows).to_excel(output, index=False); output.seek(0)

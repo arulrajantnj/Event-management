@@ -67,6 +67,10 @@ app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
     "pool_pre_ping": True,
     "pool_recycle": 280,
 }
+app.config["SCHOOL_DIRECTORY_FILE"] = os.getenv(
+    "SCHOOL_DIRECTORY_FILE",
+    os.path.join(app.instance_path, "school_data.xlsx"),
+)
 
 # ==========================
 # Upload Folder

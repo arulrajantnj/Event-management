@@ -183,8 +183,11 @@ def admin_tournament(tournament_id):
         action = request.form.get("action")
         if action == "age_group":
             name = request.form.get("name", "").strip()
+            gender_rule = request.form.get("gender_rule", "open")
+            if gender_rule not in {"open", "boys", "girls"}:
+                gender_rule = "open"
             if name and not ChessAgeGroup.query.filter_by(tournament_id=tournament.id, name=name).first():
-                db.session.add(ChessAgeGroup(tournament_id=tournament.id, name=name, gender_rule=request.form.get("gender_rule", "open"))); audit(tournament.id, "age_group_created", details=name)
+                db.session.add(ChessAgeGroup(tournament_id=tournament.id, name=name, gender_rule=gender_rule)); audit(tournament.id, "age_group_created", details=name)
         elif action == "announcement":
             title, message = request.form.get("title", "").strip(), request.form.get("message", "").strip()
             if title and message:
@@ -218,9 +221,10 @@ def admin_age_group(age_group_id):
         elif action == "orbiter":
             name, username, password = request.form.get("name", "").strip(), request.form.get("username", "").strip(), request.form.get("password", "")
             room_id = request.form.get("room_id", type=int)
-            if name and username and password and room_id and not ChessOrbiter.query.filter_by(username=username).first():
+            room = ChessRoom.query.filter_by(id=room_id, age_group_id=group.id).first()
+            if name and username and password and room and not ChessOrbiter.query.filter_by(username=username).first():
                 orbiter = ChessOrbiter(name=name, username=username, password_hash=generate_password_hash(password)); db.session.add(orbiter); db.session.flush()
-                db.session.add(ChessRoomAssignment(orbiter_id=orbiter.id, room_id=room_id)); audit(tournament.id, "orbiter_assigned", "orbiter", orbiter.id, username)
+                db.session.add(ChessRoomAssignment(orbiter_id=orbiter.id, room_id=room.id)); audit(tournament.id, "orbiter_assigned", "orbiter", orbiter.id, username)
         elif action == "pair":
             try:
                 round_row = generate_pairings(group); audit(tournament.id, "pairings_generated", "round", round_row.id, f"Round {round_row.round_number}")
@@ -275,6 +279,42 @@ def import_participants(age_group_id):
     return redirect(url_for("chess.admin_age_group", age_group_id=group.id))
 
 
+@chess_bp.route("/admin/chess/age-groups/<int:age_group_id>/orbiters/import", methods=["POST"])
+def import_orbiters(age_group_id):
+    group = ChessAgeGroup.query.get_or_404(age_group_id)
+    if not staff_for_tournament(group.tournament_id, group.id, {"tournament_admin", "age_group_admin"}): abort(403)
+    upload = request.files.get("file")
+    if not upload:
+        return redirect(url_for("chess.admin_age_group", age_group_id=group.id))
+    try:
+        frame = read_import_file(upload)
+        required_columns = {"room_name", "orbiter_name", "username", "password"}
+        if not required_columns.issubset(frame.columns):
+            raise ValueError("room_name, orbiter_name, username, and password columns are required")
+        for _, row in frame.iterrows():
+            room_name = value_from_row(row, "room_name", "room", "hall")
+            name = value_from_row(row, "orbiter_name", "name")
+            username = value_from_row(row, "username")
+            password = value_from_row(row, "password")
+            if not room_name or not name or not username or not password or ChessOrbiter.query.filter_by(username=username).first():
+                continue
+            room = ChessRoom.query.filter_by(age_group_id=group.id, name=room_name).first()
+            if not room:
+                room = ChessRoom(age_group_id=group.id, name=room_name)
+                db.session.add(room)
+                db.session.flush()
+            orbiter = ChessOrbiter(name=name, username=username, password_hash=generate_password_hash(password))
+            db.session.add(orbiter)
+            db.session.flush()
+            db.session.add(ChessRoomAssignment(orbiter_id=orbiter.id, room_id=room.id))
+        audit(group.tournament_id, "orbiters_imported", "age_group", group.id, upload.filename)
+        db.session.commit()
+    except Exception as error:
+        db.session.rollback()
+        current_app.logger.warning("Chess orbiter import rejected: %s", error)
+    return redirect(url_for("chess.admin_age_group", age_group_id=group.id))
+
+
 @chess_bp.route("/admin/chess/age-groups/<int:age_group_id>/participants/template.xlsx")
 def participant_import_template(age_group_id):
     group = ChessAgeGroup.query.get_or_404(age_group_id)
@@ -282,6 +322,17 @@ def participant_import_template(age_group_id):
     columns = ["player_code", "name", "fide_id", "gender", "district", "state", "school", "club", "mobile", "email", "status", "checked_in"]
     instructions = ["Required column: name.", "player_code is optional; one is generated when blank.", "status may be pending, verified, or withdrawn.", "checked_in accepts yes/no, true/false, or 1/0.", "Keep FIDE ID and mobile formatted as Text in Excel."]
     output, filename = workbook_response(columns, instructions, "chess_participants_template.xlsx")
+    return send_file(output, as_attachment=True, download_name=filename,
+                     mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
+
+@chess_bp.route("/admin/chess/age-groups/<int:age_group_id>/orbiters/template.xlsx")
+def orbiter_import_template(age_group_id):
+    group = ChessAgeGroup.query.get_or_404(age_group_id)
+    if not staff_for_tournament(group.tournament_id, group.id, {"tournament_admin", "age_group_admin"}): abort(403)
+    columns = ["room_name", "orbiter_name", "username", "password"]
+    instructions = ["All columns are required.", "Rooms are created automatically when they do not already exist.", "Each username must be unique."]
+    output, filename = workbook_response(columns, instructions, "chess_rooms_orbiters_template.xlsx")
     return send_file(output, as_attachment=True, download_name=filename,
                      mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
