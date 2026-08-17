@@ -93,8 +93,11 @@ def load_school_directory(filename, modified_at):
 
 
 def fetch_school_details(udise_no):
-    filename = current_app.config.get("SCHOOL_DIRECTORY_FILE", "")
-    if not filename or not os.path.isfile(filename):
+    configured_filename = current_app.config.get("SCHOOL_DIRECTORY_FILE", "")
+    bundled_filename = os.path.join(current_app.instance_path, "school_data.xlsx")
+    filenames = [configured_filename, bundled_filename]
+    filename = next((path for path in filenames if path and os.path.isfile(path)), "")
+    if not filename:
         return None, "School directory file is not available."
     try:
         schools = load_school_directory(filename, os.path.getmtime(filename))
