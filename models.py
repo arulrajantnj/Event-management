@@ -16,6 +16,8 @@ class Event(db.Model):
         primary_key=True
     )
 
+    live_meeting_enabled = db.Column(db.Boolean, default=False, nullable=False)
+
     name = db.Column(
         db.String(150),
         nullable=False

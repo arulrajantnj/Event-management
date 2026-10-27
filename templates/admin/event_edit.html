@@ -167,6 +167,30 @@
 
                         <div class="col-12">
                             <div class="border rounded-4 p-3 bg-light">
+                                <h6 class="mb-2">Live Webinar</h6>
+                                <div class="form-check"><input class="form-check-input" type="checkbox" name="live_meeting_enabled" id="live_meeting_enabled" {% if event.live_meeting_enabled %}checked{% endif %}><label class="form-check-label" for="live_meeting_enabled">Enable live webinar for this event</label></div>
+                                <small class="text-muted">Host controls are available from the live meeting page after saving.</small>
+                                {% if event.live_meeting_enabled %}<a class="btn btn-sm btn-outline-primary ms-2" href="{{ url_for('live.host_page', event_id=event.id) }}">Open host studio</a>{% endif %}
+                            </div>
+                        </div>
+
+                        <div class="col-12">
+                            <div class="border rounded-4 p-3 bg-light">
+                                <h6 class="mb-2">Seat Booking</h6>
+                                <div class="form-check mb-3"><input class="form-check-input" type="checkbox" name="seat_booking_enabled" id="seat_booking_enabled" {% if event.seat_booking_enabled %}checked{% endif %}><label class="form-check-label" for="seat_booking_enabled">Enable seat selection for this event</label></div>
+                                <p class="small text-muted">Create rows with seat number ranges, such as A: 1–20 and B: 1–30. Set a price for each row; optional per-seat overrides can change priority seat prices. Prices are in rupees.</p>
+                                <div class="row g-2 mb-2"><div class="col-4"><label class="form-label small">Row</label><input id="seat-row-name" class="form-control" maxlength="40" placeholder="A"></div><div class="col-3"><label class="form-label small">First seat</label><input id="seat-row-start" type="number" min="1" class="form-control" value="1"></div><div class="col-3"><label class="form-label small">Last seat</label><input id="seat-row-end" type="number" min="1" class="form-control" placeholder="20"></div><div class="col-2"><label class="form-label small">Price</label><input id="seat-row-price" type="number" min="0" step="0.01" class="form-control" placeholder="500"></div></div>
+                                <button type="button" class="btn btn-sm btn-outline-primary mb-3" id="add-seat-row">Add row</button>
+                                <div id="seat-row-list" class="mb-3"></div>
+                                <label class="form-label small" for="seat-overrides">Optional seat price overrides (one per line: Row, Seat, Price)</label>
+                                <textarea id="seat-overrides" class="form-control" rows="4" placeholder="A, 1, 1000&#10;A, 2, 750">{% for seat in event_seats if seat.price != event_seats|selectattr('row', 'equalto', seat.row)|first|attr('price') %}{{ seat.row }}, {{ seat.number }}, {{ seat.price }}{% if not loop.last %}&#10;{% endif %}{% endfor %}</textarea>
+                                <textarea id="seat-map-text" class="d-none">{% for row_name, seats in event_seats|groupby('row') %}{{ row_name }}, {{ (seats|map(attribute='number')|map('int')|min) if seats else 1 }}, {{ (seats|map(attribute='number')|map('int')|max) if seats else 1 }}, {{ seats[0].price if seats else 0 }}{% if not loop.last %}&#10;{% endif %}{% endfor %}</textarea>
+                                <input type="hidden" name="seat_map_json" id="seat_map_json" value="[]">
+                            </div>
+                        </div>
+
+                        <div class="col-12">
+                            <div class="border rounded-4 p-3 bg-light">
                                 <h6 class="mb-3">Payment Gateway</h6>
                                 <div class="form-check mb-3">
                                     <input class="form-check-input" type="checkbox" name="payment_enabled" id="payment_enabled" {% if event.payment_enabled %}checked{% endif %}>
@@ -180,7 +204,7 @@
                                     <div class="col-md-8">
                                         <label class="form-label">Payment method</label>
                                         <select name="payment_gateway" class="form-select"><option value="manual" {% if event.payment_gateway != 'razorpay' %}selected{% endif %}>Manual payment link / instructions</option><option value="razorpay" {% if event.payment_gateway == 'razorpay' %}selected{% endif %}>Razorpay checkout</option></select>
-                                        <small class="text-muted">Razorpay keys are read from the server environment.</small>
+                                        <small class="text-muted">Seat selection charges the total price of selected seats through Razorpay. Enable payment above and choose Razorpay checkout. Server keys remain private.</small>
                                     </div>
                                     <div class="col-md-8">
                                         <label class="form-label">Payment Link</label>
@@ -562,6 +586,45 @@
 
 {% block scripts %}
 <script>
+const seatForm = document.querySelector('form:not(#participant-import-form)');
+if (seatForm) seatForm.addEventListener('submit', function () {
+  const overrides = new Map();
+  document.getElementById('seat-overrides').value.split(/\r?\n/).forEach(line => {
+    const [row, number, price] = line.split(',').map(value => value.trim());
+    if (row && number && Number.isFinite(Number(price)) && Number(price) >= 0) overrides.set(`${row}-${number}`, Number(price));
+  });
+  const seats = [];
+  document.getElementById('seat-map-text').value.split(/\r?\n/).forEach(line => {
+    const [row, first, last, rowPrice] = line.split(',').map(value => value.trim());
+    const start = Number(first), end = Number(last), price = Number(rowPrice);
+    if (!row || !Number.isInteger(start) || !Number.isInteger(end) || start < 1 || end < start || end - start > 99 || !Number.isFinite(price) || price < 0) return;
+    for (let number = start; number <= end; number++) {
+      const id = `${row}-${number}`;
+      seats.push({id, label: `Row ${row}, Seat ${number}`, row, number: String(number), price: overrides.has(id) ? overrides.get(id) : price});
+    }
+  });
+  document.getElementById('seat_map_json').value = JSON.stringify(seats);
+});
+const rowList = document.getElementById('seat-row-list');
+const rowText = document.getElementById('seat-map-text');
+function renderSeatRows() {
+  rowList.innerHTML = '';
+  rowText.value.split(/\r?\n/).filter(Boolean).forEach((line, index) => {
+    const [row, first, last, price] = line.split(',').map(value => value.trim());
+    const item = document.createElement('div'); item.className = 'd-flex align-items-center justify-content-between border rounded p-2 mb-1';
+    const text = document.createElement('span'); text.textContent = `Row ${row}: seats ${first}–${last} · Rs. ${price}`;
+    const remove = document.createElement('button'); remove.type = 'button'; remove.className = 'btn btn-sm btn-outline-danger'; remove.textContent = 'Remove';
+    remove.addEventListener('click', () => { const rows = rowText.value.split(/\r?\n/).filter(Boolean); rows.splice(index, 1); rowText.value = rows.join('\n'); renderSeatRows(); });
+    item.append(text, remove); rowList.append(item);
+  });
+}
+renderSeatRows();
+document.getElementById('add-seat-row').addEventListener('click', () => {
+  const row = document.getElementById('seat-row-name').value.trim();
+  const first = Number(document.getElementById('seat-row-start').value), last = Number(document.getElementById('seat-row-end').value), price = Number(document.getElementById('seat-row-price').value);
+  if (!row || !Number.isInteger(first) || !Number.isInteger(last) || first < 1 || last < first || last - first > 99 || !Number.isFinite(price) || price < 0) return;
+  const rows = rowText.value.split(/\r?\n/).filter(Boolean); rows.push(`${row}, ${first}, ${last}, ${price}`); rowText.value = rows.join('\n'); renderSeatRows();
+});
 function updateSponsorPreview(scope){
     const preview = scope.querySelector("[data-sponsor-preview]");
     if(!preview) return;

@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}Join {{ event.name }}{% endblock %}
+{% block content %}
+<main class="container py-5" style="max-width:560px">
+  <div class="card shadow-sm border-0"><div class="card-body p-4">
+    <h1 class="h3">Join live event</h1><p class="text-muted">{{ event.name }} · Enter the registration ID and mobile number used for this event.</p>
+    <form id="live-access-form"><div class="mb-3"><label class="form-label" for="reg-id">Registration ID</label><input class="form-control" id="reg-id" name="reg_id" maxlength="30" required autocomplete="username"></div><div class="mb-3"><label class="form-label" for="mobile">Mobile number</label><input class="form-control" id="mobile" name="mobile" inputmode="numeric" maxlength="10" required autocomplete="tel"></div><button class="btn btn-primary">Continue to live event</button><div class="mt-3" id="access-message" role="status"></div></form>
+  </div></div>
+</main>
+{% endblock %}
+{% block scripts %}<script>
+document.getElementById('live-access-form').addEventListener('submit', async event => {
+  event.preventDefault(); const form=event.currentTarget; const message=document.getElementById('access-message');
+  try { const response=await fetch({{ url_for('live.access', event_id=event.id)|tojson }},{method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':document.querySelector('meta[name="csrf-token"]').content},body:JSON.stringify({reg_id:form.reg_id.value,mobile:form.mobile.value})}); const data=await response.json(); if(!response.ok||!data.ok) throw new Error(data.message||'Unable to authorize this registration.'); window.location.assign(data.redirect); }
+  catch(error){message.className='text-danger';message.textContent=error.message;}
+});
+</script>{% endblock %}

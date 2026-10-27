@@ -259,6 +259,26 @@ def event_payload_from_form(event=None, uploaded_font_name=""):
         collect_photo = False
 
     payment_enabled = checkbox_value("payment_enabled")
+    seat_booking_enabled = checkbox_value("seat_booking_enabled")
+    try:
+        seat_map = json.loads(request.form.get("seat_map_json", "[]"))
+    except (TypeError, ValueError):
+        seat_map = []
+    if not isinstance(seat_map, list):
+        seat_map = []
+    normalized_seats = []
+    for seat in seat_map[:2000]:
+        if not isinstance(seat, dict):
+            continue
+        seat_id = re.sub(r"[^A-Za-z0-9_-]", "", str(seat.get("id", "")))[:80]
+        label = str(seat.get("label", "")).strip()[:120]
+        try:
+            price = round(float(seat.get("price", 0)), 2)
+        except (TypeError, ValueError):
+            continue
+        if seat_id and label and price >= 0 and not any(existing["id"] == seat_id for existing in normalized_seats):
+            normalized_seats.append({"id": seat_id, "label": label, "price": price, "row": str(seat.get("row", ""))[:40], "number": str(seat.get("number", ""))[:40]})
+    normalized_seats.sort(key=lambda seat: (seat["row"].casefold(), int(seat["number"]) if seat["number"].isdigit() else 0))
     payment_amount_raw = request.form.get("payment_amount", "").strip()
 
     try:
@@ -349,6 +369,9 @@ def event_payload_from_form(event=None, uploaded_font_name=""):
         "payment_link": request.form.get("payment_link", "").strip(),
         "payment_notes": request.form.get("payment_notes", "").strip(),
         "payment_gateway": choice_value("payment_gateway", "manual", {"manual", "razorpay"}),
+        "seat_booking_enabled": seat_booking_enabled,
+        "seat_map_json": json.dumps(normalized_seats),
+        "live_meeting_enabled": checkbox_value("live_meeting_enabled"),
         "whatsapp_ack_enabled": checkbox_value("whatsapp_ack_enabled"),
         "whatsapp_template": request.form.get("whatsapp_template", "").strip(),
         "whatsapp_ack_fields": "\n".join(request.form.getlist("whatsapp_ack_fields")),
@@ -1561,6 +1584,10 @@ def edit_event(id):
         return redirect(url_for("routes.login"))
 
     event = Event.query.get_or_404(id)
+    try:
+        event_seats = json.loads(event.seat_map_json or "[]")
+    except (TypeError, ValueError):
+        event_seats = []
     if not event.registration_fields:
         seed_event_fields(event)
         db.session.commit()
@@ -1587,7 +1614,8 @@ def edit_event(id):
         data_type_choices=DATA_TYPE_CHOICES,
         code_field_choices=CODE_FIELD_CHOICES,
         whatsapp_field_choices=WHATSAPP_FIELD_CHOICES,
-        system_field_choices=SYSTEM_FIELD_CHOICES
+        system_field_choices=SYSTEM_FIELD_CHOICES,
+        event_seats=event_seats
     )
 
 
